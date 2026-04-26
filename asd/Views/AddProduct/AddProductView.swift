@@ -19,7 +19,10 @@ struct AddProductView: View {
 #if os(iOS)
                     .keyboardType(.decimalPad)
 #endif
-                TextField("Location", text: $viewModel.locationName)
+            }
+
+            Section("Location") {
+                ProductLocationPickerView(viewModel: viewModel)
             }
 
             PrimaryButton(title: "Submit product", isLoading: viewModel.isSubmitting) {

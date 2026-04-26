@@ -10,8 +10,10 @@ final class ProductService {
         description: String,
         category: String,
         priceText: String,
-        locationName: String
+        locationName: String,
+        latitude: Double,
+        longitude: Double
     ) {
-        _ = (title, description, category, priceText, locationName)
+        _ = (title, description, category, priceText, locationName, latitude, longitude)
     }
 }
