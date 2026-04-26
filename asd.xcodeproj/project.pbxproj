@@ -6,6 +6,13 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		EA061ADB2F9E1BD900D9AF08 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = EA061ADA2F9E1BD900D9AF08 /* FirebaseAuth */; };
+		EA061ADD2F9E1BD900D9AF08 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = EA061ADC2F9E1BD900D9AF08 /* FirebaseCore */; };
+		EA061ADF2F9E1BD900D9AF08 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = EA061ADE2F9E1BD900D9AF08 /* FirebaseFirestore */; };
+		EA061AE12F9E1BD900D9AF08 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = EA061AE02F9E1BD900D9AF08 /* FirebaseStorage */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		16AADDC62F4AF74F001BA677 /* asd.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = asd.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +30,10 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EA061ADD2F9E1BD900D9AF08 /* FirebaseCore in Frameworks */,
+				EA061AE12F9E1BD900D9AF08 /* FirebaseStorage in Frameworks */,
+				EA061ADB2F9E1BD900D9AF08 /* FirebaseAuth in Frameworks */,
+				EA061ADF2F9E1BD900D9AF08 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +76,10 @@
 			);
 			name = asd;
 			packageProductDependencies = (
+				EA061ADA2F9E1BD900D9AF08 /* FirebaseAuth */,
+				EA061ADC2F9E1BD900D9AF08 /* FirebaseCore */,
+				EA061ADE2F9E1BD900D9AF08 /* FirebaseFirestore */,
+				EA061AE02F9E1BD900D9AF08 /* FirebaseStorage */,
 			);
 			productName = asd;
 			productReference = 16AADDC62F4AF74F001BA677 /* asd.app */;
@@ -268,7 +283,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = asd.asd;
+				PRODUCT_BUNDLE_IDENTIFIER = edu.aubh.f2300133.openmarket;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -310,7 +325,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = asd.asd;
+				PRODUCT_BUNDLE_IDENTIFIER = edu.aubh.f2300133.openmarket;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -359,6 +374,29 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		EA061ADA2F9E1BD900D9AF08 /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16576E222F9E12CB0020CFB3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		EA061ADC2F9E1BD900D9AF08 /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16576E222F9E12CB0020CFB3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		EA061ADE2F9E1BD900D9AF08 /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16576E222F9E12CB0020CFB3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		EA061AE02F9E1BD900D9AF08 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 16576E222F9E12CB0020CFB3 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 16AADDBE2F4AF74F001BA677 /* Project object */;
 }
