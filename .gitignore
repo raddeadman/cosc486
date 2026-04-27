@@ -1,1 +1,19 @@
+# Ignore the docs directory
+
 docs/
+
+# Xcode project files to ignore
+
+# User-specific settings
+*.xcuserstate
+*.xcuserdata/
+
+# Build products
+build/
+DerivedData/
+
+# macOS system files
+.DS_Store
+
+# Xcode workspace
+*.xcworkspace/xcuserdata/
