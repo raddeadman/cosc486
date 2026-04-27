@@ -13,9 +13,9 @@ struct MarketplaceApp: App {
         // Configure Firebase initialization
         FirebaseApp.configure()
 
-        Task.detached { [weak self] in
-            guard let self = self else { return }
-            await self.authViewModel.fetchCurrentUser()
+        Task.detached(priority: .background) {
+            let authViewModel = $0.authViewModel  // Capture by value after init
+            await authViewModel.fetchCurrentUser()
         }
     }
 
@@ -34,6 +34,7 @@ struct MarketplaceApp: App {
         }
     }
 }
+
 
 extension AuthViewModel {
     func fetchCurrentUser() async {
