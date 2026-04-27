@@ -63,16 +63,6 @@ final class AuthService {
         }
     }
 
-    /// Sign in with Firebase Auth and return User model
-    private func signIn(email: String, password: String) async throws -> AuthDataResult {
-        try await auth.signIn...
-    }
-
-    /// Create a new user with Firebase Auth
-    private func createUser(name: String, email: String, password: String, uid: String) async throws {
-        try await auth.createUser...
-    }
-
     /// Update user profile in Firestore
     private func updateUserProfile(name: String, email: String, uid: String) async throws {
         let docRef = Firestore.firestore().collection("users").document(uid)
