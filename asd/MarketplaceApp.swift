@@ -10,12 +10,12 @@ struct MarketplaceApp: App {
     @StateObject private var authViewModel = AuthViewModel()
 
     init() {
-
         // Configure Firebase initialization
         FirebaseApp.configure()
 
-        Task.detached {
-            await authViewModel.fetchCurrentUser()
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+            await self.authViewModel.fetchCurrentUser()
         }
     }
 
