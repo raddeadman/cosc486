@@ -13,8 +13,9 @@ struct MarketplaceApp: App {
         // Configure Firebase initialization
         FirebaseApp.configure()
 
+        let authViewModel = self.authViewModel
         Task.detached(priority: .background) {
-            await self.authViewModel.fetchCurrentUser()
+            await authViewModel.fetchCurrentUser()
         }
     }
 
