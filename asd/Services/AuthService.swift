@@ -15,7 +15,8 @@ final class AuthService {
 
             do {
                 // Sign in with Firebase Auth
-                let result = try await auth.signIn...
+                let result = try await auth.signIn(withEmail: email, password: password)
+
         // Get user profile data from Firestore
                 let userProfile = try await self.fetchUserProfile(uid: result.user.uid)
                 completion(.success(userProfile))
@@ -32,7 +33,7 @@ final class AuthService {
 
             do {
                 // Create user with Firebase Auth
-                try await auth.createUser...
+                let newUser = try await auth.createUser(withEmail: email, password: password)
 
                 // Add user profile data to Firestore
                 try await self.updateUserProfile(name: name, email: email, uid: newUser.uid)
@@ -41,16 +42,16 @@ final class AuthService {
                     id: newUser.uid,
                     name: name,
                     email: email,
-            profileImageUrl: "",
-            ratingAverage: 0.0,
-            createdAt: .now
-        )
+                    profileImageUrl: "",
+                    ratingAverage: 0.0,
+                    createdAt: .now
+                )
                 completion(.success(userProfile))
             } catch {
                 print("Sign up error: \(error.localizedDescription)")
                 completion(.failure(error))
-    }
-}
+            }
+        }
     }
 
     func logout() {
@@ -74,8 +75,7 @@ final class AuthService {
 
     /// Update user profile in Firestore
     private func updateUserProfile(name: String, email: String, uid: String) async throws {
-        let docRef = Firestore.firestore()...
-            .document(uid)
+        let docRef = Firestore.firestore().collection("users").document(uid)
 
         try await docRef.setData([
             "name": name,
@@ -85,18 +85,18 @@ final class AuthService {
     }
 
     /// Fetch user profile from Firestore
-    private func fetchUserProfile(uid: String) async throws -> User {
-        let docRef = Firestore.firestore()...
-            .document(uid)
+    func fetchUserProfile(uid: String) async throws -> User {
+        let docRef = Firestore.firestore().collection("users").document(uid)
 
-        if let snapshot = try await docRef.getDocument() as? [String: Any] {
+        let snapshot = try await docRef.getDocument()
+        if let data = snapshot.data() {
             return User(
                 id: uid,
-                name: snapshot["name"] as? String ?? "User",
-                email: snapshot["email"] as? String ?? "",
-                profileImageUrl: snapshot["profileImageUrl"] as? String ?? "",
-                ratingAverage: Float(snapshot["ratingAverage"] as? Double ?? 0.0) ?? 0.0,
-                createdAt: snapshot["createdAt"] as? Date ?? .now
+                name: data["name"] as? String ?? "User",
+                email: data["email"] as? String ?? "",
+                profileImageUrl: data["profileImageUrl"] as? String ?? "",
+                ratingAverage: data["ratingAverage"] as? Float ?? 0.0,
+                createdAt: data["createdAt"] as? Date ?? .now
             )
         }
 

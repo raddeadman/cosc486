@@ -1,24 +1,21 @@
 import SwiftUI
-#if canImport(FirebaseCore)
+
 import FirebaseCore
-#endif
+
+import FirebaseAuth
+
 
 @main
 struct MarketplaceApp: App {
     @StateObject private var authViewModel = AuthViewModel()
 
     init() {
-        #if canImport(FirebaseCore)
-
-
 
         // Configure Firebase initialization
         FirebaseApp.configure()
-        #endif
 
-
-        Task.detached { [weak self] in
-            await self?.authViewModel.fetchCurrentUser()
+        Task.detached {
+            await authViewModel.fetchCurrentUser()
         }
     }
 
