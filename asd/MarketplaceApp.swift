@@ -21,16 +21,16 @@ struct MarketplaceApp: App {
 
     var body: some Scene {
         WindowGroup {
-
-            if authViewModel.isLoggedIn && authViewModel.userDisplayName != nil {
-                MainTabView()
-                    .environmentObject(authViewModel)
-            } else {
-                NavigationStack {
-                    LoginView()
-                        .environmentObject(authViewModel)
+            Group {
+                if authViewModel.isLoggedIn && authViewModel.userDisplayName != nil {
+                    MainTabView()
+                } else {
+                    NavigationStack {
+                        LoginView()
+                    }
                 }
             }
+            .environmentObject(authViewModel)
         }
     }
 }
