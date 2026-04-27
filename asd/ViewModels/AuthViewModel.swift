@@ -94,29 +94,36 @@ final class AuthViewModel: ObservableObject {
 
     private func setupAuthListener() {
         authStateHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            // Always dispatch to main thread for @Published updates
             DispatchQueue.main.async {
                 if let user = user {
-                    // User is signed in
+                    // User is signed in - fetch profile on background task, then update on main
                     Task.detached { [weak self] in
                         guard let self = self else { return }
 
                         do {
                             let userProfile = try await self.authService.fetchUserProfile(uid: user.uid)
-                            self.currentUser = userProfile
-                            self.isLoggedIn = true
-                            self.userDisplayName = userProfile.name.isEmpty ? "Guest" : userProfile.name
-                        } catch {
+
+                            // Update @Published properties from the main queue
+                DispatchQueue.main.async {
+                    self.currentUser = userProfile
+                                self.isLoggedIn = true
+                                self.userDisplayName = userProfile.name.isEmpty ? "Guest" : userProfile.name
+                }
+            } catch {
                             print("Failed to fetch user profile: \(error)")
-                            self.currentUser = nil
-                            self.isLoggedIn = false
-                        }
-                    }
+                            DispatchQueue.main.async {
+                                self.currentUser = nil
+                                self.isLoggedIn = false
+            }
+        }
+    }
                 } else {
-                    // User is signed out
+                    // User is signed out - update on main thread
                     self?.currentUser = nil
                     self?.isLoggedIn = false
                     self?.userDisplayName = nil
-                }
+}
             }
         }
     }
@@ -129,10 +136,10 @@ final class AuthViewModel: ObservableObject {
                 let userProfile = try await self.authService.fetchUserProfile(uid: currentUser.id)
                 DispatchQueue.main.async {
                     self.currentUser = userProfile
-                }
+    }
             } catch {
                 print("Failed to refresh user profile: \(error)")
-            }
+}
         }
     }
 }
