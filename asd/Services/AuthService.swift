@@ -10,10 +10,7 @@ final class AuthService {
             guard let self = self else { return }
 
             do {
-                // Sign in with Firebase Auth
                 let result = try await auth.signIn(withEmail: email, password: password)
-
-        // Get user profile data from Firestore
                 let userProfile = try await self.fetchUserProfile(uid: result.user.uid)
                 completion(.success(userProfile))
             } catch {
@@ -28,11 +25,20 @@ final class AuthService {
             guard let self = self else { return }
 
             do {
+                // Verify password strength first
+                guard password.count >= 6 else {
+                    throw NSError(domain: "AuthService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters"])
+                }
+
+                print("Starting sign up for: \(email)")
+
                 // Create user with Firebase Auth
                 let newUser = try await auth.createUser(withEmail: email, password: password)
+                print("User created successfully with UID: \(newUser.user.uid)")
 
                 // Add user profile data to Firestore
                 try await self.updateUserProfile(name: name, email: email, uid: newUser.user.uid)
+                print("User profile saved to Firestore")
 
                 let userProfile = User(
                     id: newUser.user.uid,
@@ -43,8 +49,28 @@ final class AuthService {
                     createdAt: .now
                 )
                 completion(.success(userProfile))
+            } catch FirebaseAuthError.code(.emailAlreadyInUse) {
+                print("Sign up error: Email already exists")
+                // Try to sign in instead
+                do {
+                    let signedInUser = try await auth.signIn(withEmail: email, password: password)
+                    let userProfile = try await self.fetchUserProfile(uid: signedInUser.user.uid)
+                    completion(.success(userProfile))
+        } catch {
+                    completion(.failure(error))
+        }
+            } catch FirebaseAuthError.code(.weakPassword) {
+                print("Sign up error: Password is too weak")
+                completion(.failure(NSError(domain: "AuthService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters"])))
             } catch {
                 print("Sign up error: \(error.localizedDescription)")
+
+                // Additional debugging - check if it's a network issue
+                if let firebaseError = error as? FirebaseAuthError {
+                    print("Firebase error code: \(firebaseError.code)")
+                    print("Firebase error message: \(firebaseError.localizedDescription)")
+    }
+
                 completion(.failure(error))
             }
         }
@@ -58,8 +84,6 @@ final class AuthService {
             print("Sign out failed: \(error.localizedDescription)")
         }
     }
-
-    /// Update user profile in Firestore
     private func updateUserProfile(name: String, email: String, uid: String) async throws {
         let docRef = Firestore.firestore().collection("users").document(uid)
 
@@ -70,7 +94,6 @@ final class AuthService {
         ])
     }
 
-    /// Fetch user profile from Firestore
     func fetchUserProfile(uid: String) async throws -> User {
         let docRef = Firestore.firestore().collection("users").document(uid)
 
@@ -86,7 +109,6 @@ final class AuthService {
             )
         }
 
-        // Return default user if no profile found
         return User(
             id: uid,
             name: "User",
@@ -98,14 +120,18 @@ final class AuthService {
     }
 }
 
-// MARK: - Firebase Errors
 extension AuthService {
     private struct FirebaseAuthError: LocalizedError {
         var errorDescription: String?
 
+        static let code: (AuthErrorCode.Type) -> FirebaseAuthError = { _ in
+            return FirebaseAuthError()
+    }
+
         static let userNotFound = FirebaseAuthError()
         static let emailExists = FirebaseAuthError()
         static let invalidPassword = FirebaseAuthError()
-    }
 }
+}
+
 
