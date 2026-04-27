@@ -9,15 +9,23 @@ struct MarketplaceApp: App {
 
     init() {
         #if canImport(FirebaseCore)
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
+
+
+
+        // Configure Firebase initialization
+        FirebaseApp.configure()
         #endif
+
+
+        Task.detached { [weak self] in
+            await self?.authViewModel.fetchCurrentUser()
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            if authViewModel.isLoggedIn {
+
+            if authViewModel.isLoggedIn && authViewModel.userDisplayName != nil {
                 MainTabView()
                     .environmentObject(authViewModel)
             } else {
@@ -26,6 +34,27 @@ struct MarketplaceApp: App {
                         .environmentObject(authViewModel)
                 }
             }
+        }
+    }
+}
+
+extension AuthViewModel {
+    func fetchCurrentUser() async {
+        let auth = Auth.auth()
+
+        do {
+            let user = try await auth.signInAnonymously()
+            currentUser = User(
+                id: user.uid,
+                name: "Guest",
+                email: "",
+                profileImageUrl: "",
+                ratingAverage: 0.0,
+                createdAt: .now
+            )
+            isLoggedIn = true
+        } catch {
+            print("Failed to fetch current user: \(error)")
         }
     }
 }
