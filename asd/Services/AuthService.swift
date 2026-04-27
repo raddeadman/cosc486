@@ -1,10 +1,6 @@
 import Foundation
-#if canImport(FirebaseAuth)
 import FirebaseAuth
-#endif
-#if canImport(Firestore)
 import FirebaseFirestore
-#endif
 
 final class AuthService {
     private let auth = Auth.auth()
@@ -36,10 +32,10 @@ final class AuthService {
                 let newUser = try await auth.createUser(withEmail: email, password: password)
 
                 // Add user profile data to Firestore
-                try await self.updateUserProfile(name: name, email: email, uid: newUser.uid)
+                try await self.updateUserProfile(name: name, email: email, uid: newUser.user.uid)
 
                 let userProfile = User(
-                    id: newUser.uid,
+                    id: newUser.user.uid,
                     name: name,
                     email: email,
                     profileImageUrl: "",
@@ -85,7 +81,7 @@ final class AuthService {
                 name: data["name"] as? String ?? "User",
                 email: data["email"] as? String ?? "",
                 profileImageUrl: data["profileImageUrl"] as? String ?? "",
-                ratingAverage: data["ratingAverage"] as? Float ?? 0.0,
+                ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
                 createdAt: data["createdAt"] as? Date ?? .now
             )
         }

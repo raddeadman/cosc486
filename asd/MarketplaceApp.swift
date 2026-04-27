@@ -42,7 +42,7 @@ extension AuthViewModel {
         do {
             let user = try await auth.signInAnonymously()
             currentUser = User(
-                id: user.uid,
+                id: user.user.uid,
                 name: "Guest",
                 email: "",
                 profileImageUrl: "",
