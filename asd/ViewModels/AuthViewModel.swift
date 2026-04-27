@@ -64,6 +64,32 @@ final class AuthViewModel: ObservableObject {
         userDisplayName = nil
     }
 
+    
+    // MARK: - Fetch Current User (replaces anonymous sign-in)
+
+    func fetchCurrentUser() async {
+        let auth = Auth.auth()
+
+        do {
+            // Check if there's an existing session
+            if auth.currentUser != nil {
+                // User is already signed in, fetch their profile
+                let userProfile = try await authService.fetchUserProfile(uid: auth.currentUser!.uid)
+                DispatchQueue.main.async { [weak self] in
+                    self?.currentUser = userProfile
+                    self?.isLoggedIn = true
+                    self?.userDisplayName = userProfile.name.isEmpty ? "Guest" : userProfile.name
+                }
+            } else {
+                // No session, try to sign in anonymously (for testing) or require email login
+                // For production, you might want to redirect to login view instead
+                print("No active session. User needs to log in.")
+            }
+        } catch {
+            print("Failed to fetch current user: \(error)")
+        }
+    }
+
     // MARK: - Auth State Listener
 
     private func setupAuthListener() {

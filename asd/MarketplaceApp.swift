@@ -34,25 +34,3 @@ struct MarketplaceApp: App {
         }
     }
 }
-
-
-extension AuthViewModel {
-    func fetchCurrentUser() async {
-        let auth = Auth.auth()
-
-        do {
-            let user = try await auth.signInAnonymously()
-            currentUser = User(
-                id: user.user.uid,
-                name: "Guest",
-                email: "",
-                profileImageUrl: "",
-                ratingAverage: 0.0,
-                createdAt: .now
-            )
-            isLoggedIn = true
-        } catch {
-            print("Failed to fetch current user: \(error)")
-        }
-    }
-}
