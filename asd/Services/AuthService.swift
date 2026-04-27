@@ -49,29 +49,18 @@ final class AuthService {
                     createdAt: .now
                 )
                 completion(.success(userProfile))
-            } catch FirebaseAuthError.code(.emailAlreadyInUse) {
-                print("Sign up error: Email already exists")
-                // Try to sign in instead
+            } catch {
+                print("Sign up error: \(error.localizedDescription)")
+
+                // Try to sign in instead if user already exists
                 do {
                     let signedInUser = try await auth.signIn(withEmail: email, password: password)
                     let userProfile = try await self.fetchUserProfile(uid: signedInUser.user.uid)
                     completion(.success(userProfile))
-        } catch {
+                } catch {
+                    print("Failed to sign in after sign up error")
                     completion(.failure(error))
-        }
-            } catch FirebaseAuthError.code(.weakPassword) {
-                print("Sign up error: Password is too weak")
-                completion(.failure(NSError(domain: "AuthService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters"])))
-            } catch {
-                print("Sign up error: \(error.localizedDescription)")
-
-                // Additional debugging - check if it's a network issue
-                if let firebaseError = error as? FirebaseAuthError {
-                    print("Firebase error code: \(firebaseError.code)")
-                    print("Firebase error message: \(firebaseError.localizedDescription)")
-    }
-
-                completion(.failure(error))
+                }
             }
         }
     }
