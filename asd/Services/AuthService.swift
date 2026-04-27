@@ -9,21 +9,16 @@ import FirebaseFirestore
 final class AuthService {
     private let auth = Auth.auth()
 
-    // MARK: - Public Methods
-
     func login(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
         Task.detached { [weak self] in
             guard let self = self else { return }
 
             do {
-                // Check if user exists with this email
-                guard await auth.currentUser != nil ||
-                      try await fetchUserProfile(uid: "existing-user").id != "" else {
-                        throw FirebaseAuthError.userNotFound
-                    }
-
-                let user = try await self.signIn(email: email, password: password)
-        completion(.success(user))
+                // Sign in with Firebase Auth
+                let result = try await auth.signIn...
+        // Get user profile data from Firestore
+                let userProfile = try await self.fetchUserProfile(uid: result.user.uid)
+                completion(.success(userProfile))
             } catch {
                 print("Login error: \(error.localizedDescription)")
                 completion(.failure(error))
@@ -37,18 +32,17 @@ final class AuthService {
 
             do {
                 // Create user with Firebase Auth
-                let credential = try await auth.createUser...
-                let newUser = credential.user
+                try await auth.createUser...
 
                 // Add user profile data to Firestore
                 try await self.updateUserProfile(name: name, email: email, uid: newUser.uid)
 
                 let userProfile = User(
                     id: newUser.uid,
-            name: name,
-            email: email,
+                    name: name,
+                    email: email,
             profileImageUrl: "",
-                    ratingAverage: 0.0,
+            ratingAverage: 0.0,
             createdAt: .now
         )
                 completion(.success(userProfile))
@@ -68,23 +62,14 @@ final class AuthService {
         }
     }
 
-    // MARK: - Private Methods
-
     /// Sign in with Firebase Auth and return User model
-    private func signIn(email: String, password: String) async throws -> User {
-        let credential = try await auth.signIn...
-        let user = credential.user
-
-        // Get user profile data from Firestore
-        let userProfile = try await fetchUserProfile(uid: user.uid)
-
-        return userProfile
+    private func signIn(email: String, password: String) async throws -> AuthDataResult {
+        try await auth.signIn...
     }
 
-    /// Create a new user with Firebase Auth (helper for signUp)
-    private func createUserWithEmail password email: String, password: String) async throws -> OAuthResult {
-        let result = try await auth.createUser...
-        return result
+    /// Create a new user with Firebase Auth
+    private func createUser(name: String, email: String, password: String, uid: String) async throws {
+        try await auth.createUser...
     }
 
     /// Update user profile in Firestore
@@ -136,11 +121,5 @@ extension AuthService {
         static let emailExists = FirebaseAuthError()
         static let invalidPassword = FirebaseAuthError()
     }
-}
-
-// MARK: - OAuth Result (placeholder for createUser)
-struct OAuthResult {
-    let user: User
-    let credential: EmailAuthCredential
 }
 
