@@ -13,7 +13,7 @@ final class AuthViewModel: ObservableObject {
     @Published var userDisplayName: String?
 
     private let authService = AuthService()
-    private var authStateHandle: AnyCancellable?
+    private var authStateHandle: NSObjectProtocol?
 
     init() {
         setupAuthListener()
