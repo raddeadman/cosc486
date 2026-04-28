@@ -149,17 +149,11 @@ final class ProductService {
             )
 
             // Add to Firestore
-            var ref = db.collection("products").document(productId)
+            // Change from completion handler to async/await pattern
+            try await db.collection("products").document(productId).setData(from: newProduct)
 
-            // Security rules will enforce seller authorization
-            ref.setData(from: newProduct) { error in
-                if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-
-                completion(.success(newProduct))
-            }
+            completion(.success(newProduct))
+            
         } catch {
             completion(.failure(error))
         }
@@ -190,7 +184,7 @@ final class ProductService {
             price = nil
         }
 
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Product, Error>) in
             db.collection("products").document(productId).getDocument { snapshot, error in
                 if let error = error {
                     continuation.resume(throwing: error)
@@ -239,14 +233,14 @@ final class ProductService {
         guard let currentUser = Auth.auth().currentUser else {
             throw ProductError.notAuthenticated
         }
-
-        try await withCheckedThrowingContinuation { continuation in
+    
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
             db.collection("products").document(productId).getDocument { snapshot, error in
                 if let error = error {
                     continuation.resume(throwing: error)
                     return
                 }
-
+    
                 guard let product = try? snapshot?.data(as: Product.self) else {
                     continuation.resume(returning: false)
                     return
