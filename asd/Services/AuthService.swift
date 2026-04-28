@@ -32,22 +32,22 @@ final class AuthService {
 
                 print("Starting sign up for: \(email)")
 
-                // Create user with Firebase Auth
+                // Create user with Firebase Auth only - profile will be created by Cloud Function
                 let newUser = try await auth.createUser(withEmail: email, password: password)
-                print("User created successfully with UID: \(newUser.user.uid)")
+                print("User created successfully in Firebase Auth")
 
-                // Add user profile data to Firestore
-                try await self.updateUserProfile(name: name, email: email, uid: newUser.user.uid)
-                print("User profile saved to Firestore")
-
+                // NOTE: User profile is automatically created in Firestore by onAuthUserCreate Cloud Function
+                // No need to manually write to Firestore here - this is handled server-side securely
                 let userProfile = User(
                     id: newUser.user.uid,
                     name: name,
                     email: email,
-                    profileImageUrl: "",
+                    profileImageUrl: "", // Will be set automatically by Cloud Function
                     ratingAverage: 0.0,
                     createdAt: .now
                 )
+
+                print("Waiting for Cloud Function to create user profile in Firestore...")
                 completion(.success(userProfile))
             } catch {
                 print("Sign up error: \(error.localizedDescription)")
@@ -73,14 +73,19 @@ final class AuthService {
             print("Sign out failed: \(error.localizedDescription)")
         }
     }
+
     private func updateUserProfile(name: String, email: String, uid: String) async throws {
+        // REMOVED: This function is no longer needed for initial user creation
+        // Profile creation is now handled by onAuthUserCreate Cloud Function
+
+        // Keep this only for profile updates (not initial creation)
         let docRef = Firestore.firestore().collection("users").document(uid)
 
         try await docRef.setData([
             "name": name,
             "email": email,
-            "createdAt": FieldValue.serverTimestamp()
-        ])
+            "updatedAt": FieldValue.serverTimestamp()
+        ], merge: true)
     }
 
     func fetchUserProfile(uid: String) async throws -> User {
@@ -108,19 +113,4 @@ final class AuthService {
         )
     }
 }
-
-extension AuthService {
-    private struct FirebaseAuthError: LocalizedError {
-        var errorDescription: String?
-
-        static let code: (AuthErrorCode.Type) -> FirebaseAuthError = { _ in
-            return FirebaseAuthError()
-    }
-
-        static let userNotFound = FirebaseAuthError()
-        static let emailExists = FirebaseAuthError()
-        static let invalidPassword = FirebaseAuthError()
-}
-}
-
 
