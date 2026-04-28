@@ -43,14 +43,14 @@ final class AuthService {
                 let newUser = try await auth.createUser(withEmail: email, password: password)
                 print("User created successfully in Firebase Auth (UID: \(newUser.user.uid))")
 
-                // Wait for the Cloud Function to create the profile
-                let userProfile = try await self.waitForProfileCreation(uid: newUser.user.uid)
-
                 try await self.updateUserProfile(
                     name: name,
                     email: email,
                     uid: newUser.user.uid
                 )
+
+                // Wait for the Cloud Function to create the profile
+                let userProfile = try await self.waitForProfileCreation(uid: newUser.user.uid)
 
                 completion(.success(userProfile))
             } catch {
