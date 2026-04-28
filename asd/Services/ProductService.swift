@@ -160,8 +160,7 @@ final class ProductService {
         }
     }
 
-    // MARK: - Update Products
-
+// MARK: - Update Products
 
 func updateProduct(
     productId: String,
@@ -186,72 +185,68 @@ func updateProduct(
         price = nil
     }
 
-    try await withCheckedThrowingContinuation { continuation in
-        do {
-            // Get existing product document
-            let snapshot = try await db.collection("products").document(productId).getDocument()
+    do {
+        // Get existing product document
+        let snapshot = try await db.collection("products").document(productId).getDocument()
 
-            guard let existingProduct = try? snapshot.data(as: Product.self) else {
-                throw ProductError.productNotFound
-            }
-
-            // Verify seller authorization
-            if existingProduct.sellerId != currentUser.uid {
-                throw ProductError.notAuthorized
-            }
-
-            var updatedProduct = existingProduct
-
-            if let title = title { updatedProduct.title = title }
-            if let description = description { updatedProduct.description = description }
-            if let category = category { updatedProduct.category = category }
-            if let price = price { updatedProduct.price = price }
-            if let locationName = locationName { updatedProduct.locationName = locationName }
-            if let latitude = latitude { updatedProduct.latitude = latitude }
-            if let longitude = longitude { updatedProduct.longitude = longitude }
-            if let imageUrls = imageUrls { updatedProduct.imageUrls = imageUrls }
-
-            // Update timestamp
-            updatedProduct.createdAt = existingProduct.createdAt
-
-            // Update the document
-            try await db.collection("products").document(productId).setData(from: updatedProduct)
-
-            continuation.resume(returning: updatedProduct)
-        } catch {
-            continuation.resume(throwing: error)
+        guard let existingProduct = try? snapshot.data(as: Product.self) else {
+            throw ProductError.productNotFound
         }
+
+        // Verify seller authorization
+        if existingProduct.sellerId != currentUser.uid {
+            throw ProductError.notAuthorized
+        }
+
+        var updatedProduct = existingProduct
+
+        if let title = title { updatedProduct.title = title }
+        if let description = description { updatedProduct.description = description }
+        if let category = category { updatedProduct.category = category }
+        if let price = price { updatedProduct.price = price }
+        if let locationName = locationName { updatedProduct.locationName = locationName }
+        if let latitude = latitude { updatedProduct.latitude = latitude }
+        if let longitude = longitude { updatedProduct.longitude = longitude }
+        if let imageUrls = imageUrls { updatedProduct.imageUrls = imageUrls }
+
+        // Update timestamp
+        updatedProduct.createdAt = existingProduct.createdAt
+
+        // Update the document using async/await
+        try await db.collection("products").document(productId).setData(from: updatedProduct)
+
+        return updatedProduct
+    } catch {
+        throw error
     }
 }
 
-    // MARK: - Delete Products
+// MARK: - Delete Products
 
 func deleteProduct(productId: String) async throws -> Bool {
     guard let currentUser = Auth.auth().currentUser else {
         throw ProductError.notAuthenticated
     }
 
-    try await withCheckedThrowingContinuation { continuation in
-        do {
-            // Get product document to verify authorization
-            let snapshot = try await db.collection("products").document(productId).getDocument()
+    do {
+        // Get product document to verify authorization
+        let snapshot = try await db.collection("products").document(productId).getDocument()
 
-            guard let product = try? snapshot.data(as: Product.self) else {
-                throw ProductError.productNotFound
-            }
-
-            // Verify seller authorization
-            if product.sellerId != currentUser.uid {
-                throw ProductError.notAuthorized
-            }
-
-            // Delete the document
-            try await db.collection("products").document(productId).delete()
-
-            continuation.resume(returning: true)
-        } catch {
-            continuation.resume(throwing: error)
+        guard let product = try? snapshot.data(as: Product.self) else {
+            throw ProductError.productNotFound
         }
+
+        // Verify seller authorization
+        if product.sellerId != currentUser.uid {
+            throw ProductError.notAuthorized
+        }
+
+        // Delete the document using async/await
+        try await db.collection("products").document(productId).delete()
+
+        return true
+    } catch {
+        throw error
     }
 }
 
