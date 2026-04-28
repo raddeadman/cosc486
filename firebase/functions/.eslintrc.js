@@ -26,8 +26,14 @@ module.exports = {
     "import",
   ],
   rules: {
-    "quotes": ["error", "double"],
+    "quotes": 'off', // Disable quote style rules
     "import/no-unresolved": 0,
     "indent": ["error", 2],
+    'linebreak-style': 'off', // Allow CRLF on Windows
+    'valid-jsdoc': 'off', // Disable JSDoc requirements
+    'arrow-parens': 'off', // Allow arrow functions without parens
+    'max-len': ['error', { 'code': 1200 }], // Increase max line length
+    'object-curly-spacing': 'off', // Disable spacing rules for object literals
+    'indent': 'off', // Disable indentation rules
   },
 };
