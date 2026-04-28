@@ -85,7 +85,7 @@ func fetchUserProfile(uid: String) async throws -> User {
                 email: data["email"] as? String ?? "",
                 profileImageUrl: data["profileImageUrl"] as? String ?? "",
                 ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
-                createdAt: (data["createdAt"] as? Timestamp)?.dateValue ?? Date()
+                createdAt: (data["createdAt"] as? Timestamp)?.dateValue ?? .now
             )
         }
 
