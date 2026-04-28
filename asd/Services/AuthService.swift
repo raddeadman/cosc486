@@ -4,6 +4,11 @@ import FirebaseFirestore
 
 final class AuthService {
     private let auth = Auth.auth()
+    private let db = Firestore.firestore()
+
+    // Maximum number of retries when waiting for profile creation
+    private static let maxRetries = 3
+    private static let retryDelay: TimeInterval = 0.5 // 500ms between retries
 
     func login(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
         Task.detached { [weak self] in
@@ -16,7 +21,7 @@ final class AuthService {
             } catch {
                 print("Login error: \(error.localizedDescription)")
                 completion(.failure(error))
-    }
+            }
         }
     }
 
@@ -27,40 +32,23 @@ final class AuthService {
             do {
                 // Verify password strength first
                 guard password.count >= 6 else {
-                    throw NSError(domain: "AuthService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters"])
+                    throw NSError(domain: "AuthService", code: 400, userInfo: [
+                        NSLocalizedDescriptionKey: "Password must be at least 6 characters"
+                    ])
                 }
 
                 print("Starting sign up for: \(email)")
 
-                // Create user with Firebase Auth only - profile will be created by Cloud Function
+                // Create user with Firebase Auth
                 let newUser = try await auth.createUser(withEmail: email, password: password)
-                print("User created successfully in Firebase Auth")
+                print("User created successfully in Firebase Auth (UID: \(newUser.user.uid))")
 
-                // NOTE: User profile is automatically created in Firestore by onAuthUserCreate Cloud Function
-                // No need to manually write to Firestore here - this is handled server-side securely
-                let userProfile = User(
-                    id: newUser.user.uid,
-                    name: name,
-                    email: email,
-                    profileImageUrl: "", // Will be set automatically by Cloud Function
-                    ratingAverage: 0.0,
-                    createdAt: .now
-                )
+                // Wait for the Cloud Function to create the profile
+                let userProfile = try await self.waitForProfileCreation(uid: newUser.user.uid)
 
-                print("Waiting for Cloud Function to create user profile in Firestore...")
                 completion(.success(userProfile))
             } catch {
-                print("Sign up error: \(error.localizedDescription)")
-
-                // Try to sign in instead if user already exists
-                do {
-                    let signedInUser = try await auth.signIn(withEmail: email, password: password)
-                    let userProfile = try await self.fetchUserProfile(uid: signedInUser.user.uid)
-                    completion(.success(userProfile))
-                } catch {
-                    print("Failed to sign in after sign up error")
-                    completion(.failure(error))
-                }
+                handleSignUpError(error, email: email, password: password, completion: completion)
             }
         }
     }
@@ -75,11 +63,7 @@ final class AuthService {
     }
 
     private func updateUserProfile(name: String, email: String, uid: String) async throws {
-        // REMOVED: This function is no longer needed for initial user creation
-        // Profile creation is now handled by onAuthUserCreate Cloud Function
-
-        // Keep this only for profile updates (not initial creation)
-        let docRef = Firestore.firestore().collection("users").document(uid)
+        let docRef = db.collection("users").document(uid)
 
         try await docRef.setData([
             "name": name,
@@ -89,28 +73,103 @@ final class AuthService {
     }
 
     func fetchUserProfile(uid: String) async throws -> User {
-        let docRef = Firestore.firestore().collection("users").document(uid)
+        let docRef = db.collection("users").document(uid)
 
-        let snapshot = try await docRef.getDocument()
-        if let data = snapshot.data() {
-            return User(
-                id: uid,
-                name: data["name"] as? String ?? "User",
-                email: data["email"] as? String ?? "",
-                profileImageUrl: data["profileImageUrl"] as? String ?? "",
-                ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
-                createdAt: data["createdAt"] as? Date ?? .now
-            )
+        do {
+            let snapshot = try await docRef.getDocument()
+
+            if let data = snapshot.data() {
+                return User(
+                    id: uid,
+                    name: data["name"] as? String ?? "User",
+                    email: data["email"] as? String ?? "",
+                    profileImageUrl: data["profileImageUrl"] as? String ?? "",
+                    ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
+                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue ?? .now
+                )
+            }
+
+            // If document exists but has no data, return a default user
+            if snapshot.exists {
+                return User(
+                    id: uid,
+                    name: "User",
+                    email: "",
+                    profileImageUrl: "",
+                    ratingAverage: 0.0,
+                    createdAt: .now
+                )
+            }
+
+            // If document doesn't exist yet (shouldn't happen for logged-in users)
+            throw AuthError.userProfileNotFound
+        } catch {
+            print("Error fetching user profile: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Waits for the Cloud Function to create a user profile in Firestore
+    private func waitForProfileCreation(uid: String) async throws -> User {
+        var retryCount = 0
+
+        while retryCount < AuthService.maxRetries {
+            do {
+                let profile = try await fetchUserProfile(uid: uid)
+
+                // Check if the profile was created by our Cloud Function
+                // (has a profileImageUrl generated from initials)
+                if !profile.profileImageUrl.isEmpty || profile.ratingAverage > 0.0 {
+                    print("Profile creation completed successfully")
+                    return profile
+                }
+
+                retryCount += 1
+                if retryCount < AuthService.maxRetries {
+                    try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
+                    print("Retrying profile fetch (attempt \(retryCount)/\(AuthService.maxRetries))...")
+                }
+            } catch {
+                if retryCount == AuthService.maxRetries - 1 {
+                    throw error
+                }
+                retryCount += 1
+                try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
+            }
         }
 
-        return User(
-            id: uid,
-            name: "User",
-            email: "",
-            profileImageUrl: "",
-            ratingAverage: 0.0,
-            createdAt: .now
-        )
+        throw AuthError.profileCreationTimeout
+    }
+
+    private func handleSignUpError(_ error: Error, email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+        print("Sign up error: \(error.localizedDescription)")
+
+        // Try to sign in if user already exists (common for duplicate emails)
+        do {
+            let signedInUser = try await auth.signIn(withEmail: email, password: password)
+
+            // Wait for profile creation (might have been created on previous attempt)
+            let userProfile = try await waitForProfileCreation(uid: signedInUser.user.uid)
+
+            completion(.success(userProfile))
+        } catch {
+            print("Failed to sign in after sign up error")
+            completion(.failure(error))
+        }
     }
 }
 
+// Custom auth errors for better error handling
+enum AuthError: Error, LocalizedError {
+    case userProfileNotFound
+    case profileCreationTimeout
+
+    var errorDescription: String? {
+        switch self {
+        case .userProfileNotFound:
+            return "User profile not found in Firestore"
+        case .profileCreationTimeout:
+            return "Failed to create user profile after maximum retries"
+        }
+    }
+}

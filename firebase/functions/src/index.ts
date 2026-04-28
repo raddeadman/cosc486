@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
-import * as functions from "firebase-functions/v1"; // Use v1 explicitly
+import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
+
 admin.initializeApp();
 const db = admin.firestore();
 
@@ -40,8 +41,8 @@ function getInitialsImageURL(name?: string): string {
 /**
  * OnAuthUserCreate - Triggered when a new user is created in Firebase Auth
  */
-export const onAuthUserCreate = functions.auth.user().onCreate(async (user) => {
-  logger.info(`New user created: ${user.uid}`, { email: user.email });
+export const onAuthUserCreate = functions.auth.user().onCreate(async (user, context) => {
+  logger.log(`New user created: ${user.uid}`, { email: user.email });
 
   try {
     // Generate default profile image URL
@@ -57,27 +58,30 @@ export const onAuthUserCreate = functions.auth.user().onCreate(async (user) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    logger.info(`User profile created successfully for ${user.uid}`);
+    logger.log(`User profile created successfully for ${user.uid}`);
+    return null; // Explicitly return to prevent any implicit returns
   } catch (error) {
     logger.error("Failed to create user profile", error);
-    throw error;
+    throw new Error(`Failed to create user profile: ${error}`);
   }
 });
 
 /**
  * OnAuthUserDelete - Triggered when a user is deleted from Firebase Auth
  */
-export const onAuthUserDelete = functions.auth.user().onDelete(async (user) => {
-  logger.info("User deleted", { uid: user.uid, email: user.email });
+export const onAuthUserDelete = functions.auth.user().onDelete(async (user, context) => {
+  logger.log("User deleted", { uid: user.uid, email: user.email });
 
   try {
-    // Optionally delete the Firestore document or archive it
+    // Delete the Firestore document
     await db.collection("users").doc(user.uid).delete();
 
-    logger.info(`User profile deleted from Firestore for ${user.uid}`);
+    logger.log(`User profile deleted from Firestore for ${user.uid}`);
+    return null;
   } catch (error) {
     logger.error("Failed to delete user profile", error);
     // Don't throw on delete to ensure auth user deletion succeeds
+    return null;
   }
 });
 
