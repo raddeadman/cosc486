@@ -72,91 +72,90 @@ final class AuthService {
         ], merge: true)
     }
 
-    func fetchUserProfile(uid: String) async throws -> User {
-        let docRef = db.collection("users").document(uid)
+func fetchUserProfile(uid: String) async throws -> User {
+    let docRef = db.collection("users").document(uid)
 
-        do {
-            let snapshot = try await docRef.getDocument()
+    do {
+        let snapshot = try await docRef.getDocument()
 
-            if let data = snapshot.data() {
-                return User(
-                    id: uid,
-                    name: data["name"] as? String ?? "User",
-                    email: data["email"] as? String ?? "",
-                    profileImageUrl: data["profileImageUrl"] as? String ?? "",
-                    ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
-                    createdAt: (data["createdAt"] as? Timestamp)?.dateValue ?? .now
-                )
-            }
-
-            // If document exists but has no data, return a default user
-            if snapshot.exists {
-                return User(
-                    id: uid,
-                    name: "User",
-                    email: "",
-                    profileImageUrl: "",
-                    ratingAverage: 0.0,
-                    createdAt: .now
-                )
-            }
-
-            // If document doesn't exist yet (shouldn't happen for logged-in users)
-            throw AuthError.userProfileNotFound
-        } catch {
-            print("Error fetching user profile: \(error.localizedDescription)")
-            throw error
+        if let data = snapshot.data() {
+            return User(
+                id: uid,
+                name: data["name"] as? String ?? "User",
+                email: data["email"] as? String ?? "",
+                profileImageUrl: data["profileImageUrl"] as? String ?? "",
+                ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
+                createdAt: (data["createdAt"] as? Timestamp)?.dateValue ?? Date()
+            )
         }
+
+        if snapshot.exists {
+            return User(
+                id: uid,
+                name: "User",
+                email: "",
+                profileImageUrl: "",
+                ratingAverage: 0.0,
+                createdAt: Date()
+            )
+        }
+
+        throw AuthError.userProfileNotFound
+    } catch {
+        print("Error fetching user profile: \(error.localizedDescription)")
+        throw error
     }
+}
 
     /// Waits for the Cloud Function to create a user profile in Firestore
-    private func waitForProfileCreation(uid: String) async throws -> User {
-        var retryCount = 0
+private func waitForProfileCreation(uid: String) async throws -> User {
+    var retryCount = 0
 
-        while retryCount < AuthService.maxRetries {
-            do {
-                let profile = try await fetchUserProfile(uid: uid)
+    while retryCount < AuthService.maxRetries {
+        do {
+            let profile = try await fetchUserProfile(uid: uid)
 
-                // Check if the profile was created by our Cloud Function
-                // (has a profileImageUrl generated from initials)
-                if !profile.profileImageUrl.isEmpty || profile.ratingAverage > 0.0 {
-                    print("Profile creation completed successfully")
-                    return profile
-                }
-
-                retryCount += 1
-                if retryCount < AuthService.maxRetries {
-                    try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
-                    print("Retrying profile fetch (attempt \(retryCount)/\(AuthService.maxRetries))...")
-                }
-            } catch {
-                if retryCount == AuthService.maxRetries - 1 {
-                    throw error
-                }
-                retryCount += 1
-                try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
+            if !profile.profileImageUrl.isEmpty || profile.ratingAverage > 0.0 {
+                print("Profile creation completed successfully")
+                return profile
             }
-        }
 
-        throw AuthError.profileCreationTimeout
+            retryCount += 1
+            if retryCount < AuthService.maxRetries {
+                try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
+                print("Retrying profile fetch (attempt \(retryCount)/\(AuthService.maxRetries))...")
+            }
+        } catch {
+            if retryCount == AuthService.maxRetries - 1 {
+                throw error
+            }
+            retryCount += 1
+            try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
+        }
     }
 
-    private func handleSignUpError(_ error: Error, email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
-        print("Sign up error: \(error.localizedDescription)")
+    throw AuthError.profileCreationTimeout
+}
 
-        // Try to sign in if user already exists (common for duplicate emails)
+private func handleSignUpError(_ error: Error, email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+    print("Sign up error: \(error.localizedDescription)")
+
+    // Try to sign in if user already exists (common for duplicate emails)
+    Task { [weak self] in
+        guard let self = self else { return }
+
         do {
             let signedInUser = try await auth.signIn(withEmail: email, password: password)
 
             // Wait for profile creation (might have been created on previous attempt)
-            let userProfile = try await waitForProfileCreation(uid: signedInUser.user.uid)
-
+            let userProfile = try await waitForProfileCreation(uid: signedInUser.uid)
             completion(.success(userProfile))
         } catch {
             print("Failed to sign in after sign up error")
             completion(.failure(error))
         }
     }
+}
 }
 
 // Custom auth errors for better error handling
