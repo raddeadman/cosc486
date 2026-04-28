@@ -1,4 +1,5 @@
 import Foundation
+import _LocationEssentials
 import FirebaseFirestore
 import FirebaseAuth
 
@@ -252,7 +253,7 @@ final class ProductService {
                     return
                 }
 
-                db.collection("products").document(productId).delete { error in
+                self.db.collection("products").document(productId).delete { error in
                     if let error = error {
                         continuation.resume(throwing: error)
                         return
