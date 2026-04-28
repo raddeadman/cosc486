@@ -85,7 +85,7 @@ func fetchUserProfile(uid: String) async throws -> User {
                 email: data["email"] as? String ?? "",
                 profileImageUrl: data["profileImageUrl"] as? String ?? "",
                 ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
-                createdAt: (data["createdAt"] as? Timestamp)?.dateValue ?? .now
+                createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
             )
         }
 
@@ -148,7 +148,7 @@ private func handleSignUpError(_ error: Error, email: String, password: String, 
             let signedInUser = try await auth.signIn(withEmail: email, password: password)
 
             // Wait for profile creation (might have been created on previous attempt)
-            let userProfile = try await waitForProfileCreation(uid: signedInUser.uid)
+            let userProfile = try await waitForProfileCreation(uid: signedInUser.user.uid)
             completion(.success(userProfile))
         } catch {
             print("Failed to sign in after sign up error")
