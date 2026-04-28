@@ -2,21 +2,22 @@ import Foundation
 import CoreLocation
 
 struct Product: Identifiable, Codable, Hashable {
-    let id: String
-    let title: String
-    let description: String
-    let price: Double
-    let category: String
-    let imageUrls: [String]
-    let sellerId: String
-    let sellerName: String
-    let locationName: String
-    let latitude: Double
-    let longitude: Double
-    let rating: Double
-    let createdAt: Date
+    var id: String
+    var title: String
+    var description: String
+    var price: Double
+    var category: String
+    var imageUrls: [String]
+    var sellerId: String
+    var sellerName: String
+    var locationName: String
+    var latitude: Double
+    var longitude: Double
+    var rating: Double
+    var createdAt: Date
 
     var coordinate: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 }
+
