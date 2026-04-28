@@ -1,32 +1,87 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * import {onCall} from "firebase-functions/v2/https";
- * import {onDocumentWritten} from "firebase-functions/v2/firestore";
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
-import {setGlobalOptions} from "firebase-functions";
-import {onRequest} from "firebase-functions/https";
+import * as admin from "firebase-admin";
+import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
 
-// Start writing functions
-// https://firebase.google.com/docs/functions/typescript
+admin.initializeApp();
+const db = admin.firestore();
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
-setGlobalOptions({ maxInstances: 10 });
+/**
+ * User Profile Model (matches User.swift structure)
+ */
+export interface UserProfile {
+  id: string;
+  name: string;
+  email: string;
+  profileImageUrl?: string;
+  ratingAverage: number;
+  createdAt: FirebaseFirestore.Timestamp;
+  updatedAt?: FirebaseFirestore.Timestamp;
+}
 
-// export const helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+/**
+ * Get initials image URL for default avatar
+ */
+function getInitialsImageURL(name?: string): string {
+  if (!name) return "";
+
+  const initials = name
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  // Generate a deterministic color based on initials
+  const hue = initials.charCodeAt(0) % 360;
+  const bgColor = `hsl(${hue}, 70%, 90%)`;
+
+  return `https://via.placeholder.com/100x100/${bgColor.replace("#", "")}/FFFFFF?text=${initials}`;
+}
+
+/**
+ * OnAuthUserCreate - Triggered when a new user is created in Firebase Auth
+ */
+export const onAuthUserCreate = functions.auth.user().onCreate(async (user, context) => {
+  logger.log(`New user created: ${user.uid}`, { email: user.email });
+
+  try {
+    // Generate default profile image URL
+    const profileImageUrl = getInitialsImageURL(user.displayName || user.email);
+
+    // Create user profile in Firestore with the exact User.swift model structure
+    await db.collection("users").doc(user.uid).set({
+      id: user.uid,
+      name: user.displayName || "User",
+      email: user.email || "",
+      profileImageUrl: profileImageUrl,
+      ratingAverage: 0.0,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logger.log(`User profile created successfully for ${user.uid}`);
+    return null; // Explicitly return to prevent any implicit returns
+  } catch (error) {
+    logger.error("Failed to create user profile", error);
+    throw new Error(`Failed to create user profile: ${error}`);
+  }
+});
+
+/**
+ * OnAuthUserDelete - Triggered when a user is deleted from Firebase Auth
+ */
+export const onAuthUserDelete = functions.auth.user().onDelete(async (user, context) => {
+  logger.log("User deleted", { uid: user.uid, email: user.email });
+
+  try {
+    // Delete the Firestore document
+    await db.collection("users").doc(user.uid).delete();
+
+    logger.log(`User profile deleted from Firestore for ${user.uid}`);
+    return null;
+  } catch (error) {
+    logger.error("Failed to delete user profile", error);
+    // Don't throw on delete to ensure auth user deletion succeeds
+    return null;
+  }
+});
+

@@ -19,3 +19,5 @@ DerivedData/
 
 # Xcode workspace
 *.xcworkspace/xcuserdata/
+
+test-tools
