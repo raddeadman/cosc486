@@ -217,13 +217,12 @@ final class ProductService {
                 // Update timestamp
                 updatedProduct.createdAt = existingProduct.createdAt
 
-                db.collection("products").document(productId).setData(from: updatedProduct) { error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-                    continuation.resume(returning: updatedProduct)
-                }
+        do {
+            try await db.collection("products").document(productId).setData(from: updatedProduct)
+            continuation.resume(returning: updatedProduct)
+        } catch {
+            continuation.resume(throwing: error)
+        }
             }
         }
     }
@@ -253,12 +252,11 @@ final class ProductService {
                     return
                 }
 
-                self.db.collection("products").document(productId).delete { error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
+                do {
+                    try await db.collection("products").document(productId).delete()
                     continuation.resume(returning: true)
+                } catch {
+                    continuation.resume(throwing: error)
                 }
             }
         }
