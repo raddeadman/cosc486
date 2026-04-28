@@ -46,6 +46,12 @@ final class AuthService {
                 // Wait for the Cloud Function to create the profile
                 let userProfile = try await self.waitForProfileCreation(uid: newUser.user.uid)
 
+                try await self.updateUserProfile(
+                    name: name,
+                    email: email,
+                    uid: newUser.user.uid
+                )
+
                 completion(.success(userProfile))
             } catch {
                 handleSignUpError(error, email: email, password: password, completion: completion)
