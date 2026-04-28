@@ -119,7 +119,7 @@ final class ProductService {
         longitude: Double,
         imageUrls: [String],
         completion: @escaping (Result<Product, Error>) -> Void
-    ) {
+    ) async {
         guard let currentUser = Auth.auth().currentUser else {
             completion(.failure(ProductError.notAuthenticated))
             return
