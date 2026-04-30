@@ -1,5 +1,3 @@
-// ... existing code ...
-
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
@@ -9,17 +7,31 @@ const db = admin.firestore();
 /**
  * Gets or creates a chat between buyer and seller for a product
  */
-export const getOrCreateChat = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
+export const getOrCreateChat = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+  } catch (error) {
+      logger.error("Invalid token for chat", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
   }
 
-  try {
-    const { buyerId, sellerId, productId } = data;
-    const currentUserId = context.auth.uid;
+    const { buyerId, sellerId, productId } = req.body;
+    const currentUserId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Determine who is the current user (buyer or seller)
     let isBuyer = false;
@@ -28,10 +40,7 @@ export const getOrCreateChat = functions.https.onCall(async (data, context) => {
     } else if (currentUserId === sellerId) {
       isBuyer = false;
     } else {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'You are not part of this chat'
-      );
+      return res.status(403).json({ error: "You are not part of this chat" });
     }
 
     // Check if chat already exists
@@ -65,32 +74,43 @@ export const getOrCreateChat = functions.https.onCall(async (data, context) => {
     });
 
     const chatData = (await chatRef.get()).data();
-    return {
+    res.status(200).json({
       id: chatRef.id,
       ...chatData
-    };
+    });
   } catch (error) {
     logger.error('Error getting or creating chat', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to process chat request'
-    );
+    return res.status(500).json({ error: 'Failed to process chat request' });
   }
 });
 
 /**
  * Fetches all chats for the current user
  */
-export const fetchChats = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
-  }
-
+export const fetchChats = functions.https.onRequest(async (req, res) => {
   try {
-    const userId = context.auth.uid;
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.error("Invalid token for fetching chats", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const userId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Get all chats where user is either buyer or seller
     const chatsSnapshot = await db.collection('chats')
@@ -107,48 +127,53 @@ export const fetchChats = functions.https.onCall(async (data, context) => {
       });
     }
 
-    return { chats };
+    res.status(200).json(chats);
   } catch (error) {
     logger.error('Error fetching chats', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to fetch chats'
-    );
+    return res.status(500).json({ error: 'Failed to fetch chats' });
   }
 });
 
 /**
  * Fetches messages for a specific chat
  */
-export const fetchMessages = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
-  }
-
+export const fetchMessages = functions.https.onRequest(async (req, res) => {
   try {
-    const { chatId } = data;
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.error("Invalid token for fetching messages", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { chatId } = req.params;
 
     // Verify user has access to this chat
     const chatDoc = await db.collection('chats').doc(chatId).get();
     if (!chatDoc.exists) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'Chat not found'
-      );
+      return res.status(404).json({ error: "Chat not found" });
     }
 
     const chatData = chatDoc.data();
-    const currentUserId = context.auth.uid;
+    const currentUserId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Check if user is part of this chat
     if (!chatData.participantIds.includes(currentUserId)) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'You are not authorized to view this chat'
-      );
+      return res.status(403).json({ error: "You are not authorized to view this chat" });
     }
 
     const messagesSnapshot = await db.collection('chats')
@@ -166,48 +191,53 @@ export const fetchMessages = functions.https.onCall(async (data, context) => {
       });
     }
 
-    return { messages };
+    res.status(200).json(messages);
   } catch (error) {
     logger.error('Error fetching messages', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to fetch messages'
-    );
+    return res.status(500).json({ error: 'Failed to fetch messages' });
   }
 });
 
 /**
  * Sends a message in a chat
  */
-export const sendMessage = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
-  }
-
+export const sendMessage = functions.https.onRequest(async (req, res) => {
   try {
-    const { chatId, text } = data;
-    const senderId = context.auth.uid;
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.error("Invalid token for sending message", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { chatId, text } = req.body;
+    const senderId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Verify user has access to this chat
     const chatDoc = await db.collection('chats').doc(chatId).get();
     if (!chatDoc.exists) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'Chat not found'
-      );
+      return res.status(404).json({ error: "Chat not found" });
     }
 
     const chatData = chatDoc.data();
 
     // Check if user is part of this chat
     if (!chatData.participantIds.includes(senderId)) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'You are not authorized to send messages in this chat'
-      );
+      return res.status(403).json({ error: "You are not authorized to send messages in this chat" });
     }
 
     const messageDoc = await db.collection('chats')
@@ -226,17 +256,12 @@ export const sendMessage = functions.https.onCall(async (data, context) => {
     });
 
     const messageData = (await messageDoc.get()).data();
-    return {
+    res.status(201).json({
       id: messageDoc.id,
       ...messageData
-    };
+    });
   } catch (error) {
     logger.error('Error sending message', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to send message'
-    );
+    return res.status(500).json({ error: 'Failed to send message' });
   }
 });
-
-// ... rest of code ...

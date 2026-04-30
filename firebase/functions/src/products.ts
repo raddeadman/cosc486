@@ -35,13 +35,8 @@ export const fetchProducts = functions.https.onRequest(async (req, res) => {
     // Apply location-based filtering if coordinates are provided
     if (lat && lng && radiusKm) {
       const distanceInMeters = parseFloat(radiusKm) * 1000;
-      productsRef = productsRef.where(
-        admin.firestore.GeoPoint(lat, lng),
-        'within',
-        distanceInMeters
-      );
+      productsRef = productsRef.where('location', 'within', distanceInMeters);
     }
-
     // Execute the query with all filters applied
     let productsSnapshot;
     if (query.length > 0) {
@@ -148,7 +143,9 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req, re
       longitude,
       rating: 0.0,
       isAvailable: true,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      // Add GeoPoint for geolocation queries
+      location: new admin.firestore.GeoPoint(latitude, longitude),
     });
 
     const product = await productRef.get();
@@ -241,3 +238,4 @@ export const updateProductAvailability = functions.https.onRequest(async (req, r
     return res.status(500).json({ error: `Failed to update availability: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
+

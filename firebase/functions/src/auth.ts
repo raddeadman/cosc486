@@ -136,7 +136,7 @@ export const fetchUserProfile = functions.https.onRequest(async (req, res) => {
       email: userData.email || "",
       profileImageUrl,
       ratingAverage: userData.ratingAverage || 0,
-      createdAt: userData.createdAt?.toDate().toISOString() || ""
+      createdAt: userData.createdAt?.toDate().toISOString() || "",
     });
   } catch (error) {
     logger.error("Fetch user profile error", error);
@@ -188,15 +188,20 @@ export const updateUserProfile = functions.https.onRequest(async (req, res) => {
     }
     updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
 
-    await db.collection("users").doc(uid).update(updates);
-
-    // Return the updated user profile
+    // Check if user document exists before updating
     const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) {
       return res.status(404).json({ error: "User not found" });
     }
 
-    const userData = userDoc.data() as any;
+    await db.collection("users").doc(uid).update(updates);
+
+    // Return the updated user profile
+    const updatedUserDoc = await db.collection("users").doc(uid).get();
+    if (!updatedUserDoc.exists) {
+      return res.status(404).json({ error: "User not found" });
+    }
+    const userData = updatedUserDoc.data() as any;
     const profileImageUrl = userData.profileImageUrl || "";
 
     res.status(200).json({

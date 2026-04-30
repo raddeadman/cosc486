@@ -3,6 +3,7 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
 import { getStorage } from "firebase-admin/storage";
+import * as busboy from "busboy";
 
 // Initialize Firebase Storage with the specified bucket
 const bucket = getStorage().bucket("openmarketmobile.firebasestorage.app");
@@ -35,17 +36,23 @@ export const uploadImageData = functions.https.onRequest(async (req, res) => {
       }
     }
 
-    // Get the file from request
-    const busboy = require('busboy');
+    // Process the file using busboy
     const bb = busboy({ headers: req.headers });
-
-    let fileBuffer: Buffer | null = null;
-    let fileName: string | null = null;
-
-    bb.on('file', (fieldname: string, file: any, info: any) => {
+    let fileBuffer: Buffer;
+    let fileName: string;
+    
+    bb.on('file', (fieldname, file, info) => {
       if (fieldname === 'file') {
         fileName = info.filename;
-        file.pipe(file);
+        const chunks: any[] = [];
+        
+        file.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+        
+        file.on('end', () => {
+          fileBuffer = Buffer.concat(chunks);
+        });
       }
     });
 
@@ -90,4 +97,3 @@ export const uploadImageData = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({ error: `Upload failed: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
-

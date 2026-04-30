@@ -1,5 +1,3 @@
-// ... existing code ...
-
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
@@ -9,24 +7,35 @@ const db = admin.firestore();
 /**
  * Fetches reviews for a seller
  */
-export const fetchReviews = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
+export const fetchReviews = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+  } catch (error) {
+      logger.error("Invalid token for fetching reviews", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
   }
 
-  try {
-    const { sellerId } = data;
-    const currentUserId = context.auth.uid;
+    const { sellerId } = req.query;
+    const currentUserId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Check if current user is the seller or admin
     if (currentUserId !== sellerId) {
-      throw new functions.https.HttpsError(
-        'permission-denied',
-        'You are not authorized to view these reviews'
-      );
+      return res.status(403).json({ error: "You are not authorized to view these reviews" });
     }
 
     const reviewsSnapshot = await db.collection('reviews')
@@ -43,37 +52,45 @@ export const fetchReviews = functions.https.onCall(async (data, context) => {
       });
     }
 
-    return { reviews };
+    res.status(200).json(reviews);
   } catch (error) {
     logger.error('Error fetching reviews', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to fetch reviews'
-    );
+    return res.status(500).json({ error: 'Failed to fetch reviews' });
   }
 });
 
 /**
  * Adds a review for a seller
  */
-export const addReview = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
-  }
-
+export const addReview = functions.https.onRequest(async (req, res) => {
   try {
-    const { sellerId, reviewerId, rating, comment } = data;
-    const currentUserId = context.auth.uid;
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.error("Invalid token for adding review", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { sellerId, reviewerId, rating, comment } = req.body;
+    const currentUserId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Verify the reviewer is not the seller
     if (currentUserId === sellerId) {
-      throw new functions.https.HttpsError(
-        'invalid-argument',
-        'You cannot review yourself'
-      );
+      return res.status(400).json({ error: "You cannot review yourself" });
     }
 
     // Check if this product has already been reviewed by this buyer
@@ -83,10 +100,7 @@ export const addReview = functions.https.onCall(async (data, context) => {
       .get();
 
     if (!existingReview.empty) {
-      throw new functions.https.HttpsError(
-        'already-exists',
-        'You have already reviewed this seller'
-      );
+      return res.status(409).json({ error: "You have already reviewed this seller" });
     }
 
     const reviewDoc = await db.collection('reviews').add({
@@ -103,7 +117,21 @@ export const addReview = functions.https.onCall(async (data, context) => {
 
     if (sellerDoc.exists) {
       const currentRating = sellerDoc.data().ratingAverage || 0;
-      const newRating = ((currentRating * reviewsSnapshot.size) + rating) / (reviewsSnapshot.size + 1);
+      // Get all reviews for this seller to calculate new average
+      const allReviewsSnapshot = await db.collection('reviews')
+        .where('sellerId', '==', sellerId)
+        .get();
+
+      let totalRating = 0;
+      let reviewCount = 0;
+
+      for (const doc of allReviewsSnapshot.docs) {
+        const reviewData = doc.data();
+        totalRating += reviewData.rating;
+        reviewCount++;
+      }
+
+      const newRating = reviewCount > 0 ? totalRating / reviewCount : rating;
 
       await sellerDocRef.update({
         ratingAverage: newRating
@@ -111,17 +139,12 @@ export const addReview = functions.https.onCall(async (data, context) => {
     }
 
     const reviewData = (await reviewDoc.get()).data();
-    return {
+    res.status(201).json({
       id: reviewDoc.id,
       ...reviewData
-    };
+    });
   } catch (error) {
     logger.error('Error adding review', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to add review'
-    );
+    return res.status(500).json({ error: 'Failed to add review' });
   }
 });
-
-// ... rest of code ...

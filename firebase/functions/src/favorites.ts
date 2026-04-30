@@ -1,5 +1,3 @@
-// ... existing code ...
-
 import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
@@ -9,16 +7,31 @@ const db = admin.firestore();
 /**
  * Fetches favorite products for a user
  */
-export const fetchFavoriteProducts = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
+export const fetchFavoriteProducts = functions.https.onRequest(async (req, res) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+  } catch (error) {
+      logger.error("Invalid token for favorites fetch", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
   }
 
-  try {
-    const userId = data.userId || context.auth.uid;
+    // Get the user ID from path parameters or token
+    const userId = req.params.userId || (await admin.auth().verifyIdToken(idToken)).uid;
     const querySnapshot = await db.collection('favorites')
       .where('userId', '==', userId)
       .get();
@@ -32,36 +45,47 @@ export const fetchFavoriteProducts = functions.https.onCall(async (data, context
         if (productDoc.exists) {
           favorites.push({
             ...productDoc.data(),
-            favoriteId: doc.id
+            favoriteId: doc.id,
           });
         }
       }
     }
 
-    return { favorites };
+    res.status(200).json(favorites);
   } catch (error) {
     logger.error('Error fetching favorites', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to fetch favorites'
-    );
+    return res.status(500).json({ error: 'Failed to fetch favorites' });
   }
 });
 
 /**
  * Adds a product to user's favorites
  */
-export const addFavorite = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
-  }
-
+export const addFavorite = functions.https.onRequest(async (req, res) => {
   try {
-    const { productId } = data;
-    const userId = context.auth.uid;
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.error("Invalid token for adding favorite", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { productId } = req.body;
+    const userId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Check if already favorite
     const existingDoc = await db.collection('favorites')
@@ -70,10 +94,7 @@ export const addFavorite = functions.https.onCall(async (data, context) => {
       .get();
 
     if (!existingDoc.empty) {
-      throw new functions.https.HttpsError(
-        'already-exists',
-        'Product already in favorites'
-      );
+      return res.status(409).json({ error: "Product already in favorites" });
     }
 
     await db.collection('favorites').add({
@@ -82,30 +103,41 @@ export const addFavorite = functions.https.onCall(async (data, context) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    return { success: true };
+    res.status(201).json({ success: true });
   } catch (error) {
     logger.error('Error adding favorite', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to add favorite'
-    );
+    return res.status(500).json({ error: 'Failed to add favorite' });
   }
 });
 
 /**
  * Removes a product from user's favorites
  */
-export const removeFavorite = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError(
-      'unauthenticated',
-      'Authentication required'
-    );
-  }
-
+export const removeFavorite = functions.https.onRequest(async (req, res) => {
   try {
-    const { productId } = data;
-    const userId = context.auth.uid;
+    if (req.method !== "DELETE") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Get the authorization header for validation
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+
+    // Verify the ID token
+    try {
+      await admin.auth().verifyIdToken(idToken);
+    } catch (error) {
+      logger.error("Invalid token for removing favorite", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { productId } = req.body;
+    const userId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Find the favorite document
     const querySnapshot = await db.collection('favorites')
@@ -114,10 +146,7 @@ export const removeFavorite = functions.https.onCall(async (data, context) => {
       .get();
 
     if (querySnapshot.empty) {
-      throw new functions.https.HttpsError(
-        'not-found',
-        'Favorite not found'
-      );
+      return res.status(404).json({ error: "Favorite not found" });
     }
 
     // Delete the document
@@ -125,14 +154,10 @@ export const removeFavorite = functions.https.onCall(async (data, context) => {
       await doc.ref.delete();
     }
 
-    return { success: true };
+    res.status(200).json({ success: true });
   } catch (error) {
     logger.error('Error removing favorite', error);
-    throw new functions.https.HttpsError(
-      'internal',
-      'Failed to remove favorite'
-    );
+    return res.status(500).json({ error: 'Failed to remove favorite' });
   }
 });
 
-// ... rest of code ...
