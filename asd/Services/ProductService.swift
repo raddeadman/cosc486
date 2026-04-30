@@ -9,6 +9,11 @@ final class ProductService {
     // MARK: - Fetch Products
 
     func fetchProducts() async throws -> [Product] {
+        // API placeholder:
+        // let url = URL(string: "https://api.example.com/v1/products?search=\(query)&category=\(category)&sort=\(sort)")!
+        // let (data, _) = try await URLSession.shared.data(from: url)
+        // let products = try JSONDecoder().decode([Product].self, from: data)
+        // return products
         try await withCheckedThrowingContinuation { continuation in
             db.collection("products")
                 .getDocuments { querySnapshot, error in
@@ -116,189 +121,16 @@ final class ProductService {
         priceText: String,
         locationName: String,
         latitude: Double,
-        longitude: Double,
-        imageUrls: [String],
-        completion: @escaping (Result<Product, Error>) -> Void
-    ) async {
-        guard let currentUser = Auth.auth().currentUser else {
-            completion(.failure(ProductError.notAuthenticated))
-            return
-        }
-
-        do {
-            // Validate price input
-            guard let price = Double(priceText) else {
-                throw ProductError.invalidPrice
-            }
-
-            let productId = UUID().uuidString
-
-            let newProduct = Product(
-                id: productId,
-                title: title,
-                description: description,
-                price: price,
-                category: category,
-                imageUrls: imageUrls,
-                sellerId: currentUser.uid,
-                sellerName: currentUser.displayName ?? "Seller",
-                locationName: locationName,
-                latitude: latitude,
-                longitude: longitude,
-                rating: 0.0,
-                createdAt: Date()
-            )
-
-            // Add to Firestore
-            // Change from completion handler to async/await pattern
-            try await db.collection("products").document(productId).setData(from: newProduct)
-
-            completion(.success(newProduct))
-            
-        } catch {
-            completion(.failure(error))
-        }
+        longitude: Double
+    ) {
+        _ = (title, description, category, priceText, locationName, latitude, longitude)
     }
 
-// MARK: - Update Products
-
-func updateProduct(
-    productId: String,
-    title: String? = nil,
-    description: String? = nil,
-    category: String? = nil,
-    priceText: String? = nil,
-    locationName: String? = nil,
-    latitude: Double? = nil,
-    longitude: Double? = nil,
-    imageUrls: [String]? = nil
-) async throws -> Product {
-    guard let currentUser = Auth.auth().currentUser else {
-        throw ProductError.notAuthenticated
-    }
-
-    // Validate price if provided
-    let price: Double?
-    if let priceText = priceText, let validatedPrice = Double(priceText) {
-        price = validatedPrice
-    } else {
-        price = nil
-    }
-
-    do {
-        // Get existing product document
-        let snapshot = try await db.collection("products").document(productId).getDocument()
-
-        guard let existingProduct = try? snapshot.data(as: Product.self) else {
-            throw ProductError.productNotFound
-        }
-
-        // Verify seller authorization
-        if existingProduct.sellerId != currentUser.uid {
-            throw ProductError.notAuthorized
-        }
-
-        var updatedProduct = existingProduct
-
-        if let title = title { updatedProduct.title = title }
-        if let description = description { updatedProduct.description = description }
-        if let category = category { updatedProduct.category = category }
-        if let price = price { updatedProduct.price = price }
-        if let locationName = locationName { updatedProduct.locationName = locationName }
-        if let latitude = latitude { updatedProduct.latitude = latitude }
-        if let longitude = longitude { updatedProduct.longitude = longitude }
-        if let imageUrls = imageUrls { updatedProduct.imageUrls = imageUrls }
-
-        // Update timestamp
-        updatedProduct.createdAt = existingProduct.createdAt
-
-        // Update the document using async/await
-        try await db.collection("products").document(productId).setData(from: updatedProduct)
-
-        return updatedProduct
-    } catch {
-        throw error
-    }
-}
-
-// MARK: - Delete Products
-
-func deleteProduct(productId: String) async throws -> Bool {
-    guard let currentUser = Auth.auth().currentUser else {
-        throw ProductError.notAuthenticated
-    }
-
-    do {
-        // Get product document to verify authorization
-        let snapshot = try await db.collection("products").document(productId).getDocument()
-
-        guard let product = try? snapshot.data(as: Product.self) else {
-            throw ProductError.productNotFound
-        }
-
-        // Verify seller authorization
-        if product.sellerId != currentUser.uid {
-            throw ProductError.notAuthorized
-        }
-
-        // Delete the document using async/await
-        try await db.collection("products").document(productId).delete()
-
-        return true
-    } catch {
-        throw error
-    }
-}
-
-    // MARK: - Search Products
-
-    func searchProducts(query: String) async throws -> [Product] {
-        try await withCheckedThrowingContinuation { continuation in
-            db.collection("products")
-                .whereField("title", isGreaterThanOrEqualTo: query)
-                .whereField("title", isLessThan: query + "\u{fff}")
-                .getDocuments { querySnapshot, error in
-                    if let error = error {
-                        continuation.resume(throwing: error)
-                        return
-                    }
-
-                    guard let documents = querySnapshot?.documents else {
-                        continuation.resume(returning: [])
-                        return
-                    }
-
-                    let products = documents.compactMap { doc -> Product? in
-                        try? doc.data(as: Product.self)
-                    }.sorted { $0.createdAt > $1.createdAt }
-
-                    continuation.resume(returning: products)
-                }
-        }
-    }
-}
-
-// MARK: - Error Handling
-
-enum ProductError: Error, LocalizedError {
-    case notAuthenticated
-    case productNotFound
-    case notAuthorized
-    case invalidPrice
-    case databaseError(String)
-
-    var errorDescription: String? {
-        switch self {
-        case .notAuthenticated:
-            return "User is not authenticated"
-        case .productNotFound:
-            return "Product not found"
-        case .notAuthorized:
-            return "You are not authorized to perform this action"
-        case .invalidPrice:
-            return "Invalid price format. Please enter a valid number."
-        case .databaseError(let message):
-            return "Database error: \(message)"
-        }
+    func updateProductAvailability(productId: String, userId: String, isAvailable: Bool) {
+        // API placeholder:
+        // PATCH https://api.example.com/v1/users/{userId}/products/{productId}/availability
+        // Body: { "isAvailable": isAvailable }
+        // let (_, _) = try await URLSession.shared.data(for: request)
+        _ = (productId, userId, isAvailable)
     }
 }
