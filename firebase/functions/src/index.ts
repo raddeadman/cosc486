@@ -1,6 +1,7 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
+import { createProduct, updateProduct, deleteProduct } from './utils/firestore';
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -85,3 +86,150 @@ export const onAuthUserDelete = functions.auth.user().onDelete(async (user, cont
   }
 });
 
+/**
+ * Create a new product in Firestore
+ */
+export const onCreateProduct = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Authentication required'
+    );
+  }
+
+  try {
+    const { title, description, category, priceText, locationName, latitude, longitude, imageUrls } = data;
+
+    // Validate inputs
+    if (!title || !description || !category || !priceText) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Title, description, category, and price are required'
+      );
+    }
+
+    const price = parseFloat(priceText);
+    if (isNaN(price)) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Price must be a valid number'
+      );
+    }
+
+    // Create the product using our helper
+    const product = await createProduct({
+      title,
+      description,
+      price,
+      category,
+      imageUrls: imageUrls || [],
+      sellerId: context.auth.uid,
+      sellerName: context.auth.token.name || 'Seller',
+      locationName,
+      latitude,
+      longitude,
+      rating: 0.0
+    });
+
+    return { success: true, product };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    console.error('Error creating product:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to create product'
+    );
+  }
+});
+
+/**
+ * Update an existing product
+ */
+export const onUpdateProduct = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Authentication required'
+    );
+  }
+
+  try {
+    const { productId, ...updates } = data;
+
+    // Validate that we have a product ID
+    if (!productId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Product ID is required'
+      );
+    }
+
+    // Update the product using our helper
+    const updatedProduct = await updateProduct(productId, updates);
+
+    if (!updatedProduct) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Product not found or not authorized to update'
+      );
+    }
+
+    return { success: true, product: updatedProduct };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    console.error('Error updating product:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to update product'
+    );
+  }
+});
+
+/**
+ * Delete a product
+ */
+export const onDeleteProduct = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+      'unauthenticated',
+      'Authentication required'
+    );
+  }
+
+  try {
+    const { productId } = data;
+
+    // Validate that we have a product ID
+    if (!productId) {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'Product ID is required'
+      );
+    }
+
+    // Delete the product using our helper
+    const success = await deleteProduct(productId);
+
+    if (!success) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Product not found or not authorized to delete'
+      );
+    }
+
+    return { success: true };
+  } catch (error) {
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+    console.error('Error deleting product:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to delete product'
+    );
+  }
+});
