@@ -2,8 +2,22 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
 
+import * as auth from "./auth";
+import * as products from "./products";
+import * as favorites from "./favorites";
+import * as chat from "./chat";
+import * as reviews from "./reviews";
+import * as storage from "./storage";
+
 admin.initializeApp();
 const db = admin.firestore();
+
+import {
+  Product,
+  Message,
+  Review,
+  Chat
+} from "./types";
 
 /**
  * User Profile Model (matches User.swift structure)
@@ -84,4 +98,29 @@ export const onAuthUserDelete = functions.auth.user().onDelete(async (user, cont
     return null;
   }
 });
+
+// Export all the new functions
+export const login = auth.login;
+export const logout = auth.logout;
+export const fetchUserProfile = auth.fetchUserProfile;
+export const updateUserProfile = auth.updateUserProfile;
+export const signUp = auth.signUp;
+
+export const fetchProducts = products.fetchProducts;
+export const submitPlaceholderProduct = products.submitPlaceholderProduct;
+export const updateProductAvailability = products.updateProductAvailability;
+
+export const fetchFavoriteProducts = favorites.fetchFavoriteProducts;
+export const addFavorite = favorites.addFavorite;
+export const removeFavorite = favorites.removeFavorite;
+
+export const getOrCreateChat = chat.getOrCreateChat;
+export const fetchChats = chat.fetchChats;
+export const fetchMessages = chat.fetchMessages;
+export const sendMessage = chat.sendMessage;
+
+export const fetchReviews = reviews.fetchReviews;
+export const addReview = reviews.addReview;
+
+export const uploadImageData = storage.uploadImageData;
 
