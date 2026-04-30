@@ -1,53 +1,126 @@
 import Foundation
+import Combine
+
+// MARK: - Chat Service
+// Handles all chat-related operations with the backend API
+
+enum ChatError: Error, LocalizedError {
+    case invalidParameters
+    case networkError(Error)
+    case serverError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidParameters:
+            return "Invalid parameters provided"
+        case .networkError(let error):
+            return error.localizedDescription
+        case .serverError(let message):
+            return message
+        }
+    }
+}
 
 final class ChatService {
-    private var messagesStore: [Message] = [
-        Message(id: UUID().uuidString, chatId: "chat-1", senderId: "other-user", receiverId: "current-user", text: "Is this available?", timestamp: .now)
-    ]
+    private let baseURL = "https://api.example.com/v1"
 
-    func getOrCreateChat(buyerId: String, sellerId: String, productId: String) -> String {
-        // API placeholder:
-        // POST https://api.example.com/v1/chats
-        // Body: { "buyerId": buyerId, "sellerId": sellerId, "productId": productId }
-        // Response: { "id": "chat-...", "participantIds": [buyerId, sellerId], "productId": productId }
-        // let (_, data) = try await URLSession.shared.data(for: request)
-        // let chat = try JSONDecoder().decode(ChatSummary.self, from: data)
-        // return chat.id
-        let userA = min(buyerId, sellerId)
-        let userB = max(buyerId, sellerId)
-        return "chat-\(productId)-\(userA)-\(userB)"
+    // MARK: - Get or Create Chat
+
+    func getOrCreateChat(
+        buyerId: String,
+        sellerId: String,
+        productId: String,
+        token: String
+    ) -> AnyPublisher<Chat, Error> {
+        guard !buyerId.isEmpty, !sellerId.isEmpty, !productId.isEmpty else {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/chats"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let requestBody: [String: Any] = [
+            "buyerId": buyerId,
+            "sellerId": sellerId,
+            "productId": productId
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: Chat.self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 
-    func fetchChats() -> [String] {
-        // API placeholder:
-        // GET https://api.example.com/v1/chats
-        // Response should include productId for product-scoped chat previews
-        // let (data, _) = try await URLSession.shared.data(from: url)
-        // return try JSONDecoder().decode([String].self, from: data)
-        ["chat-1"]
+    // MARK: - Fetch Chats
+
+    func fetchChats(token: String) -> AnyPublisher<[Chat], Error> {
+        let urlString = "\(baseURL)/chats"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: [Chat].self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 
-    func fetchMessages(chatId: String) -> [Message] {
-        // API placeholder:
-        // GET https://api.example.com/v1/chats/{chatId}/messages
-        // let (data, _) = try await URLSession.shared.data(from: url)
-        // return try JSONDecoder().decode([Message].self, from: data)
-        messagesStore.filter { $0.chatId == chatId }
+    // MARK: - Fetch Messages
+
+    func fetchMessages(chatId: String) -> AnyPublisher<[Message], Error> {
+        guard !chatId.isEmpty else {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/chats/\(chatId)/messages"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "GET"
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: [Message].self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 
-    func sendMessage(text: String, chatId: String) {
-        // API placeholder:
-        // POST https://api.example.com/v1/chats/{chatId}/messages
-        // Body: { "text": text }
-        // let (_, _) = try await URLSession.shared.data(for: request)
-        let message = Message(
-            id: UUID().uuidString,
-            chatId: chatId,
-            senderId: "current-user",
-            receiverId: "other-user",
-            text: text,
-            timestamp: .now
-        )
-        messagesStore.append(message)
+    // MARK: - Send Message
+
+    func sendMessage(text: String, chatId: String, token: String) -> AnyPublisher<Message, Error> {
+        guard !text.isEmpty, !chatId.isEmpty else {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/chats/\(chatId)/messages"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let requestBody: [String: Any] = [
+            "text": text
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: Message.self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
     }
 }

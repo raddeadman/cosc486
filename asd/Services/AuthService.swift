@@ -1,197 +1,167 @@
 import Foundation
-import FirebaseAuth
-import FirebaseFirestore
+import Combine
 
-final class AuthService {
-    private let auth = Auth.auth()
-    private let db = Firestore.firestore()
+// MARK: - Auth Service
+// Handles all authentication-related operations with the backend API
 
-    // Maximum number of retries when waiting for profile creation
-    private static let maxRetries = 3
-    private static let retryDelay: TimeInterval = 0.5 // 500ms between retries
-
-    func login(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
-        // API placeholder:
-        // POST https://api.example.com/v1/auth/login
-        // Body: { "email": email, "password": password }
-        // Response: { "token": "...", "user": User }
-        Task.detached { [weak self] in
-            guard let self = self else { return }
-
-            do {
-                let result = try await auth.signIn(withEmail: email, password: password)
-                let userProfile = try await self.fetchUserProfile(uid: result.user.uid)
-                completion(.success(userProfile))
-            } catch {
-                print("Login error: \(error.localizedDescription)")
-                completion(.failure(error))
-            }
-        }
-    }
-
-    func signUp(name: String, email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
-        // API placeholder:
-        // POST https://api.example.com/v1/auth/register
-        // Body: { "name": name, "email": email, "password": password }
-        // Response: { "token": "...", "user": User }
-        Task.detached { [weak self] in
-            guard let self = self else { return }
-
-            do {
-                // Verify password strength first
-                guard password.count >= 6 else {
-                    throw NSError(domain: "AuthService", code: 400, userInfo: [
-                        NSLocalizedDescriptionKey: "Password must be at least 6 characters"
-                    ])
-                }
-
-                print("Starting sign up for: \(email)")
-
-                // Create user with Firebase Auth
-                let newUser = try await auth.createUser(withEmail: email, password: password)
-                print("User created successfully in Firebase Auth (UID: \(newUser.user.uid))")
-
-                try await self.updateUserProfile(
-                    name: name,
-                    email: email,
-                    uid: newUser.user.uid
-                )
-
-                // Wait for the Cloud Function to create the profile
-                let userProfile = try await self.waitForProfileCreation(uid: newUser.user.uid)
-
-                completion(.success(userProfile))
-            } catch {
-                handleSignUpError(error, email: email, password: password, completion: completion)
-            }
-        }
-    }
-
-    func logout() {
-        // API placeholder:
-        // POST https://api.example.com/v1/auth/logout
-        // Headers: Authorization: Bearer <token>
-        do {
-            try auth.signOut()
-            print("Logout successful")
-        } catch {
-            print("Sign out failed: \(error.localizedDescription)")
-        }
-    }
-
-    private func updateUserProfile(name: String, email: String, uid: String) async throws {
-        // API placeholder:
-        // PATCH https://api.example.com/v1/users/{uid}
-        // Body: { "name": name, "email": email }
-        let docRef = db.collection("users").document(uid)
-
-        try await docRef.setData([
-            "name": name,
-            "email": email,
-            "updatedAt": FieldValue.serverTimestamp()
-        ], merge: true)
-    }
-
-func fetchUserProfile(uid: String) async throws -> User {
-    // API placeholder:
-    // GET https://api.example.com/v1/users/{uid}
-    // Response: User
-    let docRef = db.collection("users").document(uid)
-
-    do {
-        let snapshot = try await docRef.getDocument()
-
-        if let data = snapshot.data() {
-            return User(
-                id: uid,
-                name: data["name"] as? String ?? "User",
-                email: data["email"] as? String ?? "",
-                profileImageUrl: data["profileImageUrl"] as? String ?? "",
-                ratingAverage: data["ratingAverage"] as? Double ?? 0.0,
-                createdAt: (data["createdAt"] as? Timestamp)?.dateValue() ?? Date()
-            )
-        }
-
-        if snapshot.exists {
-            return User(
-                id: uid,
-                name: "User",
-                email: "",
-                profileImageUrl: "",
-                ratingAverage: 0.0,
-                createdAt: Date()
-            )
-        }
-
-        throw AuthError.userProfileNotFound
-    } catch {
-        print("Error fetching user profile: \(error.localizedDescription)")
-        throw error
-    }
-}
-
-    /// Waits for the Cloud Function to create a user profile in Firestore
-private func waitForProfileCreation(uid: String) async throws -> User {
-    var retryCount = 0
-
-    while retryCount < AuthService.maxRetries {
-        do {
-            let profile = try await fetchUserProfile(uid: uid)
-
-            if !profile.profileImageUrl.isEmpty || profile.ratingAverage > 0.0 {
-                print("Profile creation completed successfully")
-                return profile
-            }
-
-            retryCount += 1
-            if retryCount < AuthService.maxRetries {
-                try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
-                print("Retrying profile fetch (attempt \(retryCount)/\(AuthService.maxRetries))...")
-            }
-        } catch {
-            if retryCount == AuthService.maxRetries - 1 {
-                throw error
-            }
-            retryCount += 1
-            try await Task.sleep(nanoseconds: UInt64(AuthService.retryDelay * 1_000_000_000))
-        }
-    }
-
-    throw AuthError.profileCreationTimeout
-}
-
-private func handleSignUpError(_ error: Error, email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
-    print("Sign up error: \(error.localizedDescription)")
-
-    // Try to sign in if user already exists (common for duplicate emails)
-    Task { [weak self] in
-        guard let self = self else { return }
-
-        do {
-            let signedInUser = try await auth.signIn(withEmail: email, password: password)
-
-            // Wait for profile creation (might have been created on previous attempt)
-            let userProfile = try await waitForProfileCreation(uid: signedInUser.user.uid)
-            completion(.success(userProfile))
-        } catch {
-            print("Failed to sign in after sign up error")
-            completion(.failure(error))
-        }
-    }
-}
-}
-
-// Custom auth errors for better error handling
 enum AuthError: Error, LocalizedError {
-    case userProfileNotFound
-    case profileCreationTimeout
+    case invalidParameters
+    case networkError(Error)
+    case serverError(String)
 
     var errorDescription: String? {
         switch self {
-        case .userProfileNotFound:
-            return "User profile not found in Firestore"
-        case .profileCreationTimeout:
-            return "Failed to create user profile after maximum retries"
+        case .invalidParameters:
+            return "Invalid parameters provided"
+        case .networkError(let error):
+            return error.localizedDescription
+        case .serverError(let message):
+            return message
         }
+    }
+}
+
+final class AuthService {
+    private let baseURL = "https://api.example.com/v1"
+
+    // MARK: - Login
+
+    func login(email: String, password: String) -> AnyPublisher<User, Error> {
+        guard !email.isEmpty, !password.isEmpty else {
+            return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/auth/login"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let requestBody: [String: Any] = [
+            "email": email,
+            "password": password
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: LoginResponse.self, decoder: JSONDecoder())
+            .map(\.user)
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Sign Up
+
+    func signUp(name: String, email: String, password: String) -> AnyPublisher<User, Error> {
+        guard !name.isEmpty, !email.isEmpty, !password.isEmpty else {
+            return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/auth/register"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let requestBody: [String: Any] = [
+            "name": name,
+            "email": email,
+            "password": password
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: LoginResponse.self, decoder: JSONDecoder())
+            .map(\.user)
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Logout
+
+    func logout(token: String) -> AnyPublisher<Bool, Error> {
+        let urlString = "\(baseURL)/auth/logout"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { _ in true }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fetch User Profile
+
+    func fetchUserProfile(uid: String) -> AnyPublisher<User, Error> {
+        let urlString = "\(baseURL)/users/\(uid)"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "GET"
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: User.self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Update User Profile
+
+    func updateUserProfile(name: String, email: String, uid: String) -> AnyPublisher<User, Error> {
+        guard !name.isEmpty, !email.isEmpty else {
+            return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/users/\(uid)"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let requestBody: [String: Any] = [
+            "name": name,
+            "email": email
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: User.self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+}
+
+// MARK: - Response Models
+
+struct LoginResponse: Codable {
+    let token: String
+    let user: User
+}
+
+extension Data {
+    fileprivate func response() throws -> (data: Data) {
+        guard let httpResponse = HTTPURLResponse(
+            statusCode: 200,
+            headers: [:],
+            url: URL(string: "https://api.example.com/v1")!
+        ) else {
+            throw URLError(.badServerResponse)
+        }
+        return (self, httpResponse)
     }
 }

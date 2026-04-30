@@ -1,14 +1,80 @@
 import Foundation
+import Combine
+
+// MARK: - Product Service
+// Handles all product-related operations with the backend API
+
+enum ProductError: Error, LocalizedError {
+    case invalidParameters
+    case networkError(Error)
+    case serverError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidParameters:
+            return "Invalid parameters provided"
+        case .networkError(let error):
+            return error.localizedDescription
+        case .serverError(let message):
+            return message
+        }
+    }
+}
 
 final class ProductService {
-    func fetchProducts() -> [Product] {
-        // API placeholder:
-        // let url = URL(string: "https://api.example.com/v1/products?search=\(query)&category=\(category)&sort=\(sort)")!
-        // let (data, _) = try await URLSession.shared.data(from: url)
-        // let products = try JSONDecoder().decode([Product].self, from: data)
-        // return products
-        MockData.products
+    private let baseURL = "https://api.example.com/v1"
+
+    // MARK: - Fetch Products
+
+    func fetchProducts(
+        search: String? = nil,
+        category: String? = nil,
+        sort: String? = nil,
+        lat: Double? = nil,
+        lng: Double? = nil,
+        radiusKm: Int? = nil
+    ) -> AnyPublisher<[Product], Error> {
+        var urlString = "\(baseURL)/products"
+        if let search = search, !search.isEmpty {
+            urlString += "?search=\(search)"
+        }
+        if let category = category, !category.isEmpty {
+            if urlString.contains("?") {
+                urlString += "&category=\(category)"
+            } else {
+                urlString += "?category=\(category)"
+            }
+        }
+        if let sort = sort, !sort.isEmpty {
+            if urlString.contains("?") {
+                urlString += "&sort=\(sort)"
+            } else {
+                urlString += "?sort=\(sort)"
+            }
+        }
+        if let lat = lat, let lng = lng, let radiusKm = radiusKm {
+            if urlString.contains("?") {
+                urlString += "&lat=\(lat)&lng=\(lng)&radiusKm=\(radiusKm)"
+            } else {
+                urlString += "?lat=\(lat)&lng=\(lng)&radiusKm=\(radiusKm)"
+            }
+        }
+
+        guard let url = URL(string: urlString) else {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: [Product].self, decoder: JSONDecoder())
+            .receive(on: DispatchQuery.main)
+            .eraseToAnyPublisher()
     }
+
+    // MARK: - Submit Placeholder Product
 
     func submitPlaceholderProduct(
         title: String,
@@ -18,31 +84,73 @@ final class ProductService {
         locationName: String,
         latitude: Double,
         longitude: Double
-    ) {
-        // API placeholder:
-        // let url = URL(string: "https://api.example.com/v1/products")!
-        // var request = URLRequest(url: url)
-        // request.httpMethod = "POST"
-        // request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // request.httpBody = try JSONEncoder().encode([
-        //   "title": title,
-        //   "description": description,
-        //   "category": category,
-        //   "price": priceText,
-        //   "isAvailable": true,
-        //   "locationName": locationName,
-        //   "latitude": latitude,
-        //   "longitude": longitude
-        // ])
-        // let (_, _) = try await URLSession.shared.data(for: request)
-        _ = (title, description, category, priceText, locationName, latitude, longitude)
+    ) -> AnyPublisher<Product, Error> {
+        guard !title.isEmpty, !description.isEmpty, !category.isEmpty, !priceText.isEmpty, !locationName.isEmpty else {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/products"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        // Convert priceText to Double
+        guard let price = Double(priceText) else {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let requestBody: [String: Any] = [
+            "title": title,
+            "description": description,
+            "category": category,
+            "price": price,
+            "isAvailable": true,
+            "locationName": locationName,
+            "latitude": latitude,
+            "longitude": longitude
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: Product.self, decoder: JSONDecoder())
+            .receive(on: DispatchQuery.main)
+            .eraseToAnyPublisher()
     }
 
-    func updateProductAvailability(productId: String, userId: String, isAvailable: Bool) {
-        // API placeholder:
-        // PATCH https://api.example.com/v1/users/{userId}/products/{productId}/availability
-        // Body: { "isAvailable": isAvailable }
-        // let (_, _) = try await URLSession.shared.data(for: request)
-        _ = (productId, userId, isAvailable)
+    // MARK: - Update Product Availability
+
+    func updateProductAvailability(
+        productId: String,
+        userId: String,
+        isAvailable: Bool,
+        token: String
+    ) -> AnyPublisher<Product, Error> {
+        let urlString = "\(baseURL)/users/\(userId)/products/\(productId)/availability"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let requestBody: [String: Any] = [
+            "isAvailable": isAvailable
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap(\.response)
+            .decode(type: Product.self, decoder: JSONDecoder())
+            .receive(on: DispatchQuery.main)
+            .eraseToAnyPublisher()
     }
 }
