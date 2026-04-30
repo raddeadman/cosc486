@@ -11,6 +11,10 @@ final class AuthService {
     private static let retryDelay: TimeInterval = 0.5 // 500ms between retries
 
     func login(email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+        // API placeholder:
+        // POST https://api.example.com/v1/auth/login
+        // Body: { "email": email, "password": password }
+        // Response: { "token": "...", "user": User }
         Task.detached { [weak self] in
             guard let self = self else { return }
 
@@ -26,6 +30,10 @@ final class AuthService {
     }
 
     func signUp(name: String, email: String, password: String, completion: @escaping (Result<User, Error>) -> Void) {
+        // API placeholder:
+        // POST https://api.example.com/v1/auth/register
+        // Body: { "name": name, "email": email, "password": password }
+        // Response: { "token": "...", "user": User }
         Task.detached { [weak self] in
             guard let self = self else { return }
 
@@ -60,6 +68,9 @@ final class AuthService {
     }
 
     func logout() {
+        // API placeholder:
+        // POST https://api.example.com/v1/auth/logout
+        // Headers: Authorization: Bearer <token>
         do {
             try auth.signOut()
             print("Logout successful")
@@ -69,6 +80,9 @@ final class AuthService {
     }
 
     private func updateUserProfile(name: String, email: String, uid: String) async throws {
+        // API placeholder:
+        // PATCH https://api.example.com/v1/users/{uid}
+        // Body: { "name": name, "email": email }
         let docRef = db.collection("users").document(uid)
 
         try await docRef.setData([
@@ -79,6 +93,9 @@ final class AuthService {
     }
 
 func fetchUserProfile(uid: String) async throws -> User {
+    // API placeholder:
+    // GET https://api.example.com/v1/users/{uid}
+    // Response: User
     let docRef = db.collection("users").document(uid)
 
     do {

@@ -14,6 +14,7 @@ struct Product: Identifiable, Codable, Hashable {
     let latitude: Double
     let longitude: Double
     let rating: Double
+    let isAvailable: Bool
     let createdAt: Date
 
     var coordinate: CLLocationCoordinate2D {

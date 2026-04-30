@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FavoritesView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @StateObject private var viewModel = FavoritesViewModel()
 
     var body: some View {
@@ -18,5 +19,11 @@ struct FavoritesView: View {
             }
         }
         .navigationTitle("Favorites")
+        .onAppear {
+            viewModel.setCurrentUserId(authViewModel.currentUser?.id)
+        }
+        .onChange(of: authViewModel.currentUser?.id) { _, newUserId in
+            viewModel.setCurrentUserId(newUserId)
+        }
     }
 }

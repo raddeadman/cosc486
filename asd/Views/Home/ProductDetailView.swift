@@ -2,7 +2,15 @@ import SwiftUI
 import MapKit
 
 struct ProductDetailView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
     let product: Product
+    @State private var openChat = false
+    @State private var targetChatId = ""
+    private let chatService = ChatService()
+
+    private var currentUserId: String {
+        authViewModel.currentUser?.id ?? "current-user"
+    }
 
     var body: some View {
         ScrollView {
@@ -29,11 +37,28 @@ struct ProductDetailView: View {
                 ProductMapView(product: product)
                     .frame(height: 220)
 
-                PrimaryButton(title: "Contact Seller") {}
+                PrimaryButton(title: "Contact Seller") {
+                    // API placeholder:
+                    // let chatId = try await chatService.getOrCreateChat(
+                    //   buyerId: currentUserId,
+                    //   sellerId: product.sellerId,
+                    //   productId: product.id
+                    // )
+                    // targetChatId = chatId
+                    targetChatId = chatService.getOrCreateChat(
+                        buyerId: currentUserId,
+                        sellerId: product.sellerId,
+                        productId: product.id
+                    )
+                    openChat = true
+                }
                 PrimaryButton(title: "Add to Favorites") {}
             }
             .padding()
         }
         .navigationTitle("Details")
+        .navigationDestination(isPresented: $openChat) {
+            ChatDetailView(chatId: targetChatId, product: product, currentUserId: currentUserId)
+        }
     }
 }

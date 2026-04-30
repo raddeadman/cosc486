@@ -29,4 +29,31 @@ final class ProductViewModel: ObservableObject {
     func fetchProducts() {
         products = productService.fetchProducts()
     }
+
+    func productsForSeller(userId: String) -> [Product] {
+        products.filter { $0.sellerId == userId }
+    }
+
+    func updateAvailability(product: Product, isAvailable: Bool, userId: String) {
+        productService.updateProductAvailability(productId: product.id, userId: userId, isAvailable: isAvailable)
+        products = products.map { current in
+            guard current.id == product.id else { return current }
+            return Product(
+                id: current.id,
+                title: current.title,
+                description: current.description,
+                price: current.price,
+                category: current.category,
+                imageUrls: current.imageUrls,
+                sellerId: current.sellerId,
+                sellerName: current.sellerName,
+                locationName: current.locationName,
+                latitude: current.latitude,
+                longitude: current.longitude,
+                rating: current.rating,
+                isAvailable: isAvailable,
+                createdAt: current.createdAt
+            )
+        }
+    }
 }
