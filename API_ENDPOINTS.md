@@ -6,46 +6,7 @@ Base URL (example): `https://api.example.com/v1`
 
 ## 1) Auth
 
-### `POST /auth/register`
-- **Used by function:** `AuthService.signUp(name:email:password:completion:)`
-- **Request body:**
-```json
-{
-  "name": "Sara Ali",
-  "email": "sara@example.com",
-  "password": "secret123"
-}
-```
-- **Response body:**
-```json
-{
-  "token": "jwt-token",
-  "user": {
-    "id": "u1",
-    "name": "Sara Ali",
-    "email": "sara@example.com",
-    "profileImageUrl": "",
-    "ratingAverage": 0
-  }
-}
-```
-
-### `POST /auth/login`
-- **Used by function:** `AuthService.login(email:password:completion:)`
-- **Request body:**
-```json
-{
-  "email": "sara@example.com",
-  "password": "secret123"
-}
-```
-- **Response body:** same shape as register response (`token` + `user`)
-
-### `POST /auth/logout`
-- **Used by function:** `AuthService.logout()`
-- **Headers:** `Authorization: Bearer <token>`
-- **Request body:** none
-- **Response body:** optional `{ "success": true }`
+# Already handled with Firebase auth
 
 ## 2) Users / Profile
 
