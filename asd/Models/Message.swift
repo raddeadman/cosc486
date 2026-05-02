@@ -4,7 +4,8 @@ struct Message: Identifiable, Codable, Hashable {
     let id: String
     let chatId: String
     let senderId: String
-    let receiverId: String
+    let receiverId: String  // Added to match backend response
     let text: String
-    let timestamp: Date
+    let createdAt: Date  // Changed from timestamp to createdAt to match backend
 }
+

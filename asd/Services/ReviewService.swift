@@ -38,7 +38,7 @@ final class ReviewService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap(\.response)
             .decode(type: [Review].self, decoder: JSONDecoder())
-            .receive(on: DispatchQuery.main)
+            .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
@@ -75,7 +75,7 @@ final class ReviewService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap(\.response)
             .decode(type: Review.self, decoder: JSONDecoder())
-            .receive(on: DispatchQuery.main)
+            .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 }

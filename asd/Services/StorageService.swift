@@ -56,7 +56,7 @@ final class StorageService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap(\.response)
             .decode(type: UploadResponse.self, decoder: JSONDecoder())
-            .receive(on: DispatchQuery.main)
+            .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 }

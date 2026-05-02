@@ -39,7 +39,7 @@ final class FavoritesService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap(\.response)
             .decode(type: [Product].self, decoder: JSONDecoder())
-            .receive(on: DispatchQuery.main)
+            .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
@@ -68,7 +68,7 @@ final class FavoritesService {
 
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { _ in true }
-            .receive(on: DispatchQuery.main)
+            .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
@@ -86,7 +86,7 @@ final class FavoritesService {
 
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { _ in true }
-            .receive(on: DispatchQuery.main)
+            .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 }
