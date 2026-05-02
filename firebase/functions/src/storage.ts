@@ -11,7 +11,7 @@ const bucket = getStorage().bucket("openmarketmobile.firebasestorage.app");
 /**
  * StorageService.uploadImageData - HTTP trigger to upload an image
  */
-export const uploadImageData = functions.https.onRequest(async (req, res) => {
+export const uploadImageData = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -41,12 +41,12 @@ export const uploadImageData = functions.https.onRequest(async (req, res) => {
     let fileBuffer: Buffer;
     let fileName: string;
     
-    bb.on('file', (fieldname, file, info) => {
+    bb.on('file', (fieldname: string, file: any, info: { filename: string }) => {
       if (fieldname === 'file') {
         fileName = info.filename;
-        const chunks: any[] = [];
+        const chunks: Uint8Array[] = [];
         
-        file.on('data', (chunk) => {
+        file.on('data', (chunk: Uint8Array) => {
           chunks.push(chunk);
         });
         

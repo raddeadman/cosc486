@@ -12,12 +12,12 @@ import * as storage from "./storage";
 admin.initializeApp();
 const db = admin.firestore();
 
-import {
-  Product,
-  Message,
-  Review,
-  Chat
-} from "./types";
+// import {
+//   Product,
+//   Message,
+//   Review,
+//   Chat
+// } from "./types";
 
 /**
  * User Profile Model (matches User.swift structure)

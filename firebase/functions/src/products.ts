@@ -8,7 +8,7 @@ const db = admin.firestore();
 /**
  * ProductService.fetchProducts - HTTP trigger to fetch products with optional filters
  */
-export const fetchProducts = functions.https.onRequest(async (req, res) => {
+export const fetchProducts = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
@@ -19,32 +19,27 @@ export const fetchProducts = functions.https.onRequest(async (req, res) => {
 
     // Build Firestore query based on filters
     let productsRef = db.collection('products');
-    const query: any[] = [];
-
     if (search) {
-      query.push(
-        admin.firestore().where('title', '>=', search),
-        admin.firestore().where('title', '<=', search + '\uf8ff')
-      );
+      // Use array-contains for text search or create a composite index
+      productsRef = productsRef.where('title', '>=', search);
     }
 
     if (category) {
-      query.push(admin.firestore().where('category', '==', category));
+      productsRef = productsRef.where('category', '==', category);
     }
 
     // Apply location-based filtering if coordinates are provided
     if (lat && lng && radiusKm) {
-      const distanceInMeters = parseFloat(radiusKm) * 1000;
-      productsRef = productsRef.where('location', 'within', distanceInMeters);
-    }
-    // Execute the query with all filters applied
-    let productsSnapshot;
-    if (query.length > 0) {
-      productsSnapshot = await productsRef.get();
-    } else {
-      productsSnapshot = await db.collection('products').get();
+      const latitude = parseFloat(lat as string);
+      const longitude = parseFloat(lng as string);
+      const distanceInMeters = parseFloat(radiusKm as string) * 1000;
+
+      // Use a geospatial query with GeoPoint
+      productsRef = productsRef.where('location', '>', new admin.firestore.GeoPoint(latitude, longitude));
     }
 
+    // Execute the query
+    const productsSnapshot = await productsRef.get();
     const products = [];
     for (const doc of productsSnapshot.docs) {
       const productData = doc.data() as any;
@@ -58,7 +53,7 @@ export const fetchProducts = functions.https.onRequest(async (req, res) => {
     // Apply sorting if specified
     let sortedProducts = [...products];
     if (sort) {
-      switch (sort) {
+      switch (sort as string) {
         case 'date':
           sortedProducts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           break;
@@ -81,7 +76,7 @@ export const fetchProducts = functions.https.onRequest(async (req, res) => {
 /**
  * ProductService.submitPlaceholderProduct - HTTP trigger to create a new product
  */
-export const submitPlaceholderProduct = functions.https.onRequest(async (req, res) => {
+export const submitPlaceholderProduct = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -111,7 +106,7 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req, re
       return res.status(400).json({ error: "All required fields are missing" });
     }
 
-    const price = parseFloat(priceText);
+    const price = parseFloat(priceText as string);
     if (isNaN(price)) {
       return res.status(400).json({ error: "Invalid price value" });
     }
@@ -168,7 +163,7 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req, re
 /**
  * ProductService.updateProductAvailability - HTTP trigger to toggle product availability
  */
-export const updateProductAvailability = functions.https.onRequest(async (req, res) => {
+export const updateProductAvailability = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "PATCH") {
       return res.status(405).send("Method Not Allowed");
@@ -222,7 +217,7 @@ export const updateProductAvailability = functions.https.onRequest(async (req, r
     });
 
     // Return the updated product
-    const updatedProduct = await productDoc.get();
+    const updatedProduct = await db.collection('products').doc(productId).get();
     if (!updatedProduct.exists) {
       return res.status(500).json({ error: "Failed to fetch updated product" });
     }

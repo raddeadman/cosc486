@@ -7,7 +7,7 @@ const db = admin.firestore();
 /**
  * Gets or creates a chat between buyer and seller for a product
  */
-export const getOrCreateChat = functions.https.onRequest(async (req, res) => {
+export const getOrCreateChat = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -87,7 +87,7 @@ export const getOrCreateChat = functions.https.onRequest(async (req, res) => {
 /**
  * Fetches all chats for the current user
  */
-export const fetchChats = functions.https.onRequest(async (req, res) => {
+export const fetchChats = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
@@ -120,24 +120,26 @@ export const fetchChats = functions.https.onRequest(async (req, res) => {
 
     const chats = [];
     for (const doc of chatsSnapshot.docs) {
-      const chatData = doc.data();
+      const chatData = doc.data() as any;
       chats.push({
         id: doc.id,
-        ...chatData
+        ...chatData,
+        createdAt: chatData.createdAt?.toDate().toISOString(),
+        updatedAt: chatData.updatedAt?.toDate().toISOString()
       });
     }
 
     res.status(200).json(chats);
   } catch (error) {
     logger.error('Error fetching chats', error);
-    return res.status(500).json({ error: 'Failed to fetch chats' });
+    return res.status(500).json({ error: `Failed to fetch chats: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 
 /**
  * Fetches messages for a specific chat
  */
-export const fetchMessages = functions.https.onRequest(async (req, res) => {
+export const fetchMessages = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
@@ -168,7 +170,7 @@ export const fetchMessages = functions.https.onRequest(async (req, res) => {
       return res.status(404).json({ error: "Chat not found" });
     }
 
-    const chatData = chatDoc.data();
+    const chatData = chatDoc.data() as any;
     const currentUserId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Check if user is part of this chat
@@ -184,24 +186,25 @@ export const fetchMessages = functions.https.onRequest(async (req, res) => {
 
     const messages = [];
     for (const doc of messagesSnapshot.docs) {
-      const messageData = doc.data();
+      const messageData = doc.data() as any;
       messages.push({
         id: doc.id,
-        ...messageData
+        ...messageData,
+        createdAt: messageData.createdAt?.toDate().toISOString()
       });
     }
 
     res.status(200).json(messages);
   } catch (error) {
     logger.error('Error fetching messages', error);
-    return res.status(500).json({ error: 'Failed to fetch messages' });
+    return res.status(500).json({ error: `Failed to fetch messages: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 
 /**
  * Sends a message in a chat
  */
-export const sendMessage = functions.https.onRequest(async (req, res) => {
+export const sendMessage = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -233,7 +236,7 @@ export const sendMessage = functions.https.onRequest(async (req, res) => {
       return res.status(404).json({ error: "Chat not found" });
     }
 
-    const chatData = chatDoc.data();
+    const chatData = chatDoc.data() as any;
 
     // Check if user is part of this chat
     if (!chatData.participantIds.includes(senderId)) {
@@ -255,13 +258,15 @@ export const sendMessage = functions.https.onRequest(async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    const messageData = (await messageDoc.get()).data();
+    const messageData = (await messageDoc.get()).data() as any;
     res.status(201).json({
       id: messageDoc.id,
-      ...messageData
+      ...messageData,
+      createdAt: messageData.createdAt?.toDate().toISOString()
     });
   } catch (error) {
     logger.error('Error sending message', error);
-    return res.status(500).json({ error: 'Failed to send message' });
+    return res.status(500).json({ error: `Failed to send message: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
+

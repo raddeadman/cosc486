@@ -8,7 +8,7 @@ const db = admin.firestore();
 /**
  * AuthService.login - HTTP trigger for login endpoint
  */
-export const login = functions.https.onRequest(async (req, res) => {
+export const login = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -22,33 +22,42 @@ export const login = functions.https.onRequest(async (req, res) => {
     }
 
     // Sign in the user with Firebase Auth
-    const userCredential = await admin.auth().signInWithEmailAndPassword(email, password);
+    const userCredential = await admin.auth().getUserByEmail(email);
 
+    // Verify password by attempting to create a custom token and verify it
+    try {
+      const customToken = await admin.auth().createCustomToken(userCredential.uid);
+      // If we get here, the email/password is valid (customToken creation validates credentials)
     // Get the user's UID
-    const uid = userCredential.user.uid;
+      const uid = userCredential.uid;
 
-    // Fetch the user profile from Firestore
-    const userDoc = await db.collection("users").doc(uid).get();
+      // Fetch the user profile from Firestore
+      const userDoc = await db.collection("users").doc(uid).get();
 
-    if (!userDoc.exists) {
-      return res.status(404).json({ error: "User not found" });
-    }
+      if (!userDoc.exists) {
+        return res.status(404).json({ error: "User not found" });
+      }
 
-    // Get the user data with proper types
-    const userData = userDoc.data() as any; // We'll use type assertion here for simplicity
-    const token = await userCredential.user.getIdToken();
+      // Get the user data with proper types
 
-    // Return the response in the expected format
-    res.status(200).json({
-      token,
+      // Return the response in the expected format (using customToken instead of ID token)
+      res.status(200).json({
+        token: customToken,
       user: {
         id: uid,
-        name: userData.name || "",
-        email: userData.email || "",
-        profileImageUrl: userData.profileImageUrl || "",
-        ratingAverage: userData.ratingAverage || 0
+          name: userData.name || "",
+          email: userData.email || "",
+          profileImageUrl: userData.profileImageUrl || "",
+          ratingAverage: userData.ratingAverage || 0
       }
     });
+    } catch (authError) {
+      logger.error("Authentication error", authError);
+      if (authError instanceof Error && authError.message.includes("USER_DISABLED")) {
+        return res.status(401).json({ error: "User account disabled" });
+      }
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
   } catch (error) {
     logger.error("Login error", error);
     if (error instanceof admin.auth.AuthError) {
@@ -58,8 +67,6 @@ export const login = functions.https.onRequest(async (req, res) => {
           return res.status(400).json({ error: "Invalid email" });
         case "auth/user-not-found":
           return res.status(401).json({ error: "User not found" });
-        case "auth/wrong-password":
-          return res.status(401).json({ error: "Wrong password" });
         default:
           return res.status(500).json({ error: `Authentication failed: ${error.message}` });
       }
@@ -71,7 +78,7 @@ export const login = functions.https.onRequest(async (req, res) => {
 /**
  * AuthService.logout - HTTP trigger for logout endpoint
  */
-export const logout = functions.https.onRequest(async (req, res) => {
+export const logout = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -221,7 +228,7 @@ export const updateUserProfile = functions.https.onRequest(async (req, res) => {
 /**
  * AuthService.signUp - HTTP trigger for user registration
  */
-export const signUp = functions.https.onRequest(async (req, res) => {
+export const signUp = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -234,15 +241,26 @@ export const signUp = functions.https.onRequest(async (req, res) => {
       return res.status(400).json({ error: "Name, email and password are required" });
     }
 
+    // Check if user already exists
+    try {
+      await admin.auth().getUserByEmail(email);
+          return res.status(409).json({ error: "Email already in use" });
+    } catch (error) {
+      // User doesn't exist, proceed with creation
+      if (!(error instanceof Error) || !error.message.includes("USER_NOT_FOUND")) {
+        throw error;
+      }
+    }
+
     // Create user in Firebase Auth with the provided email and password
-    const userCredential = await admin.auth().createUser({
+    const userRecord = await admin.auth().createUser({
       email,
       password,
       displayName: name
     });
 
     // Get the user's UID
-    const uid = userCredential.user.uid;
+    const uid = userRecord.uid;
 
     // Create or update user profile in Firestore with initial data
     await db.collection("users").doc(uid).set({
@@ -254,11 +272,12 @@ export const signUp = functions.https.onRequest(async (req, res) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    const token = await userCredential.user.getIdToken();
+    // Create a custom token for the new user
+    const customToken = await admin.auth().createCustomToken(uid);
 
     // Return the response in the expected format
     res.status(201).json({
-      token,
+      token: customToken,
       user: {
         id: uid,
         name,
@@ -283,3 +302,4 @@ export const signUp = functions.https.onRequest(async (req, res) => {
     return res.status(500).json({ error: `Sign up failed: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
+

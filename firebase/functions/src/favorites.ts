@@ -7,7 +7,7 @@ const db = admin.firestore();
 /**
  * Fetches favorite products for a user
  */
-export const fetchFavoriteProducts = functions.https.onRequest(async (req, res) => {
+export const fetchFavoriteProducts = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
@@ -38,14 +38,16 @@ export const fetchFavoriteProducts = functions.https.onRequest(async (req, res) 
 
     const favorites = [];
     for (const doc of querySnapshot.docs) {
-      const productData = doc.data();
+      const productData = doc.data() as any;
       if (productData.productId) {
         // Fetch the actual product data
         const productDoc = await db.collection('products').doc(productData.productId).get();
         if (productDoc.exists) {
+          const productInfo = productDoc.data() as any;
           favorites.push({
-            ...productDoc.data(),
+            ...productInfo,
             favoriteId: doc.id,
+            createdAt: productInfo.createdAt?.toDate().toISOString()
           });
         }
       }
@@ -54,14 +56,14 @@ export const fetchFavoriteProducts = functions.https.onRequest(async (req, res) 
     res.status(200).json(favorites);
   } catch (error) {
     logger.error('Error fetching favorites', error);
-    return res.status(500).json({ error: 'Failed to fetch favorites' });
+    return res.status(500).json({ error: `Failed to fetch favorites: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 
 /**
  * Adds a product to user's favorites
  */
-export const addFavorite = functions.https.onRequest(async (req, res) => {
+export const addFavorite = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -106,14 +108,14 @@ export const addFavorite = functions.https.onRequest(async (req, res) => {
     res.status(201).json({ success: true });
   } catch (error) {
     logger.error('Error adding favorite', error);
-    return res.status(500).json({ error: 'Failed to add favorite' });
+    return res.status(500).json({ error: `Failed to add favorite: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 
 /**
  * Removes a product from user's favorites
  */
-export const removeFavorite = functions.https.onRequest(async (req, res) => {
+export const removeFavorite = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "DELETE") {
       return res.status(405).send("Method Not Allowed");
@@ -157,7 +159,7 @@ export const removeFavorite = functions.https.onRequest(async (req, res) => {
     res.status(200).json({ success: true });
   } catch (error) {
     logger.error('Error removing favorite', error);
-    return res.status(500).json({ error: 'Failed to remove favorite' });
+    return res.status(500).json({ error: `Failed to remove favorite: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 

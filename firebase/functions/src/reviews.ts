@@ -7,7 +7,7 @@ const db = admin.firestore();
 /**
  * Fetches reviews for a seller
  */
-export const fetchReviews = functions.https.onRequest(async (req, res) => {
+export const fetchReviews = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
@@ -45,24 +45,25 @@ export const fetchReviews = functions.https.onRequest(async (req, res) => {
 
     const reviews = [];
     for (const doc of reviewsSnapshot.docs) {
-      const reviewData = doc.data();
+      const reviewData = doc.data() as any;
       reviews.push({
         id: doc.id,
-        ...reviewData
+        ...reviewData,
+        createdAt: reviewData.createdAt?.toDate().toISOString()
       });
     }
 
     res.status(200).json(reviews);
   } catch (error) {
     logger.error('Error fetching reviews', error);
-    return res.status(500).json({ error: 'Failed to fetch reviews' });
+    return res.status(500).json({ error: `Failed to fetch reviews: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 
 /**
  * Adds a review for a seller
  */
-export const addReview = functions.https.onRequest(async (req, res) => {
+export const addReview = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "POST") {
       return res.status(405).send("Method Not Allowed");
@@ -116,7 +117,8 @@ export const addReview = functions.https.onRequest(async (req, res) => {
     const sellerDoc = await sellerDocRef.get();
 
     if (sellerDoc.exists) {
-      const currentRating = sellerDoc.data().ratingAverage || 0;
+      const sellerData = sellerDoc.data() as any;
+      const currentRating = sellerData.ratingAverage || 0;
       // Get all reviews for this seller to calculate new average
       const allReviewsSnapshot = await db.collection('reviews')
         .where('sellerId', '==', sellerId)
@@ -126,7 +128,7 @@ export const addReview = functions.https.onRequest(async (req, res) => {
       let reviewCount = 0;
 
       for (const doc of allReviewsSnapshot.docs) {
-        const reviewData = doc.data();
+        const reviewData = doc.data() as any;
         totalRating += reviewData.rating;
         reviewCount++;
       }
@@ -138,13 +140,15 @@ export const addReview = functions.https.onRequest(async (req, res) => {
       });
     }
 
-    const reviewData = (await reviewDoc.get()).data();
+    const reviewData = (await reviewDoc.get()).data() as any;
     res.status(201).json({
       id: reviewDoc.id,
-      ...reviewData
+      ...reviewData,
+      createdAt: reviewData.createdAt?.toDate().toISOString()
     });
   } catch (error) {
     logger.error('Error adding review', error);
-    return res.status(500).json({ error: 'Failed to add review' });
+    return res.status(500).json({ error: `Failed to add review: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
+
