@@ -34,11 +34,10 @@ export const getOrCreateChat = functions.https.onRequest(async (req: any, res: a
     const currentUserId = (await admin.auth().verifyIdToken(idToken)).uid;
 
     // Determine who is the current user (buyer or seller)
-    let isBuyer = false;
     if (currentUserId === buyerId) {
-      isBuyer = true;
+      // Current user is buyer
     } else if (currentUserId === sellerId) {
-      isBuyer = false;
+      // Current user is seller
     } else {
       return res.status(403).json({ error: "You are not part of this chat" });
     }

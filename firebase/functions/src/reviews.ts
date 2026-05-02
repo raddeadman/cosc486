@@ -117,8 +117,6 @@ export const addReview = functions.https.onRequest(async (req: any, res: any) =>
     const sellerDoc = await sellerDocRef.get();
 
     if (sellerDoc.exists) {
-      const sellerData = sellerDoc.data() as any;
-      const currentRating = sellerData.ratingAverage || 0;
       // Get all reviews for this seller to calculate new average
       const allReviewsSnapshot = await db.collection('reviews')
         .where('sellerId', '==', sellerId)

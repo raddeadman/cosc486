@@ -19,23 +19,27 @@ export const fetchProducts = functions.https.onRequest(async (req: any, res: any
 
     // Build Firestore query based on filters
     let productsRef = db.collection('products');
+
     if (search) {
       // Use array-contains for text search or create a composite index
-      productsRef = productsRef.where('title', '>=', search);
+      const query = productsRef.where('title', '>=', search);
+      productsRef = query as any;
     }
 
     if (category) {
-      productsRef = productsRef.where('category', '==', category);
+      let query: admin.firestore.Query = productsRef;
+        query = query.where('category', '==', category);
+      productsRef = query as any;
     }
 
     // Apply location-based filtering if coordinates are provided
     if (lat && lng && radiusKm) {
       const latitude = parseFloat(lat as string);
       const longitude = parseFloat(lng as string);
-      const distanceInMeters = parseFloat(radiusKm as string) * 1000;
 
-      // Use a geospatial query with GeoPoint
-      productsRef = productsRef.where('location', '>', new admin.firestore.GeoPoint(latitude, longitude));
+      let query: admin.firestore.Query = productsRef;
+        query = query.where('location', '>', new admin.firestore.GeoPoint(latitude, longitude));
+      productsRef = query as any;
     }
 
     // Execute the query

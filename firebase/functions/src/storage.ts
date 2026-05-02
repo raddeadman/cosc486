@@ -3,7 +3,7 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
 import { getStorage } from "firebase-admin/storage";
-import * as busboy from "busboy";
+import busboy from "busboy";
 
 // Initialize Firebase Storage with the specified bucket
 const bucket = getStorage().bucket("openmarketmobile.firebasestorage.app");
@@ -97,3 +97,4 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
     return res.status(500).json({ error: `Upload failed: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
+

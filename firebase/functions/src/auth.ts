@@ -39,10 +39,11 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
       }
 
       // Get the user data with proper types
+    const userData = userDoc.data() as any;
 
       // Return the response in the expected format (using customToken instead of ID token)
-      res.status(200).json({
-        token: customToken,
+    res.status(200).json({
+      token: customToken,
       user: {
         id: uid,
           name: userData.name || "",
@@ -60,15 +61,17 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
     }
   } catch (error) {
     logger.error("Login error", error);
-    if (error instanceof admin.auth.AuthError) {
+    // Handle errors with proper type checking since admin.auth.AuthError doesn't exist in v10+
+    if (error && typeof error === 'object' && 'code' in error) {
+      const authError = error as { code: string; message?: string };
       // Handle specific auth errors
-      switch (error.code) {
+      switch (authError.code) {
         case "auth/invalid-email":
           return res.status(400).json({ error: "Invalid email" });
         case "auth/user-not-found":
           return res.status(401).json({ error: "User not found" });
         default:
-          return res.status(500).json({ error: `Authentication failed: ${error.message}` });
+          return res.status(500).json({ error: `Authentication failed: ${authError.message || String(error)}` });
       }
     }
     return res.status(500).json({ error: `Login failed: ${error instanceof Error ? error.message : String(error)}` });
@@ -113,7 +116,7 @@ export const logout = functions.https.onRequest(async (req: any, res: any) => {
 /**
  * AuthService.fetchUserProfile - HTTP trigger to fetch user profile
  */
-export const fetchUserProfile = functions.https.onRequest(async (req, res) => {
+export const fetchUserProfile = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "GET") {
       return res.status(405).send("Method Not Allowed");
@@ -154,7 +157,7 @@ export const fetchUserProfile = functions.https.onRequest(async (req, res) => {
 /**
  * AuthService.updateUserProfile - HTTP trigger to update user profile
  */
-export const updateUserProfile = functions.https.onRequest(async (req, res) => {
+export const updateUserProfile = functions.https.onRequest(async (req: any, res: any) => {
   try {
     if (req.method !== "PATCH") {
       return res.status(405).send("Method Not Allowed");
@@ -286,17 +289,20 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
         ratingAverage: 0.0
       }
     });
+    return; // Explicit return
   } catch (error) {
     logger.error("Sign up error", error);
-    if (error instanceof admin.auth.AuthError) {
+    // Handle errors with proper type checking since admin.auth.AuthError doesn't exist in v10+
+    if (error && typeof error === 'object' && 'code' in error) {
+      const authError = error as { code: string; message?: string };
       // Handle specific auth errors
-      switch (error.code) {
+      switch (authError.code) {
         case "auth/email-already-in-use":
           return res.status(409).json({ error: "Email already in use" });
         case "auth/invalid-email":
           return res.status(400).json({ error: "Invalid email" });
         default:
-          return res.status(500).json({ error: `Registration failed: ${error.message}` });
+          return res.status(500).json({ error: `Registration failed: ${authError.message || String(error)}` });
       }
     }
     return res.status(500).json({ error: `Sign up failed: ${error instanceof Error ? error.message : String(error)}` });
