@@ -59,7 +59,7 @@ export const getOrCreateChat = functions.https.onRequest(async (req: any, res: a
         participantIds: [buyerId, sellerId],
         lastMessage: null,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
       chatRef = chatDoc;
     } else {
@@ -69,13 +69,13 @@ export const getOrCreateChat = functions.https.onRequest(async (req: any, res: a
 
     // Update lastMessage timestamp
     await chatRef.update({
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     const chatData = (await chatRef.get()).data();
     res.status(200).json({
       id: chatRef.id,
-      ...chatData
+      ...chatData,
     });
   } catch (error) {
     logger.error('Error getting or creating chat', error);
@@ -124,7 +124,7 @@ export const fetchChats = functions.https.onRequest(async (req: any, res: any) =
         id: doc.id,
         ...chatData,
         createdAt: chatData.createdAt?.toDate().toISOString(),
-        updatedAt: chatData.updatedAt?.toDate().toISOString()
+        updatedAt: chatData.updatedAt?.toDate().toISOString(),
       });
     }
 
@@ -189,7 +189,7 @@ export const fetchMessages = functions.https.onRequest(async (req: any, res: any
       messages.push({
         id: doc.id,
         ...messageData,
-        createdAt: messageData.createdAt?.toDate().toISOString()
+        createdAt: messageData.createdAt?.toDate().toISOString(),
       });
     }
 
@@ -248,20 +248,20 @@ export const sendMessage = functions.https.onRequest(async (req: any, res: any) 
       .add({
         text,
         senderId,
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
     // Update chat's lastMessage
     await db.collection('chats').doc(chatId).update({
       lastMessage: text,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     const messageData = (await messageDoc.get()).data() as any;
     res.status(201).json({
       id: messageDoc.id,
       ...messageData,
-      createdAt: messageData.createdAt?.toDate().toISOString()
+      createdAt: messageData.createdAt?.toDate().toISOString(),
     });
   } catch (error) {
     logger.error('Error sending message', error);

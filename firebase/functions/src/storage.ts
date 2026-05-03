@@ -40,16 +40,16 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
     const bb = busboy({ headers: req.headers });
     let fileBuffer: Buffer;
     let fileName: string;
-    
+
     bb.on('file', (fieldname: string, file: any, info: { filename: string }) => {
       if (fieldname === 'file') {
         fileName = info.filename;
         const chunks: Uint8Array[] = [];
-        
+
         file.on('data', (chunk: Uint8Array) => {
           chunks.push(chunk);
         });
-        
+
         file.on('end', () => {
           fileBuffer = Buffer.concat(chunks);
         });
@@ -72,9 +72,9 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
           metadata: {
             contentType: 'image/' + (fileExtension || 'jpg'),
             metadata: {
-              uploadedBy: req.headers['x-user-id'] || 'anonymous'
-            }
-          }
+              uploadedBy: req.headers['x-user-id'] || 'anonymous',
+            },
+          },
         });
 
         // Make the file publicly accessible
@@ -82,7 +82,7 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
 
         // Return the public URL
         res.status(201).json({
-          url: `https://storage.googleapis.com/openmarketmobile.firebasestorage.app/media-uploads/${uniqueFileName}`
+          url: `https://storage.googleapis.com/openmarketmobile.firebasestorage.app/media-uploads/${uniqueFileName}`,
         });
       } catch (error) {
         logger.error("Image upload error", error);
@@ -91,7 +91,6 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
     });
 
     req.pipe(bb);
-
   } catch (error) {
     logger.error("Upload handler error", error);
     return res.status(500).json({ error: `Upload failed: ${error instanceof Error ? error.message : String(error)}` });

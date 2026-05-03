@@ -50,12 +50,12 @@ export const fetchProducts = functions.https.onRequest(async (req: any, res: any
       products.push({
         id: doc.id,
         ...productData,
-        createdAt: productData.createdAt?.toDate().toISOString()
+        createdAt: productData.createdAt?.toDate().toISOString(),
       });
     }
 
     // Apply sorting if specified
-    let sortedProducts = [...products];
+    const sortedProducts = [...products];
     if (sort) {
       switch (sort as string) {
         case 'date':
@@ -156,7 +156,7 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req: an
     res.status(201).json({
       id: product.id,
       ...productData,
-      createdAt: productData.createdAt?.toDate().toISOString()
+      createdAt: productData.createdAt?.toDate().toISOString(),
     });
   } catch (error) {
     logger.error("Submit product error", error);
@@ -217,7 +217,7 @@ export const updateProductAvailability = functions.https.onRequest(async (req: a
     // Update the product availability
     await db.collection('products').doc(productId).update({
       isAvailable,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // Return the updated product
@@ -230,7 +230,7 @@ export const updateProductAvailability = functions.https.onRequest(async (req: a
     res.status(200).json({
       id: productId,
       ...updatedData,
-      createdAt: updatedData.createdAt?.toDate().toISOString()
+      createdAt: updatedData.createdAt?.toDate().toISOString(),
     });
   } catch (error) {
     logger.error("Update availability error", error);

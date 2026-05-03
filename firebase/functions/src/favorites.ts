@@ -47,7 +47,7 @@ export const fetchFavoriteProducts = functions.https.onRequest(async (req: any, 
           favorites.push({
             ...productInfo,
             favoriteId: doc.id,
-            createdAt: productInfo.createdAt?.toDate().toISOString()
+            createdAt: productInfo.createdAt?.toDate().toISOString(),
           });
         }
       }
@@ -102,7 +102,7 @@ export const addFavorite = functions.https.onRequest(async (req: any, res: any) 
     await db.collection('favorites').add({
       userId,
       productId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({ success: true });

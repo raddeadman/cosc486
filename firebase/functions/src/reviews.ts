@@ -49,7 +49,7 @@ export const fetchReviews = functions.https.onRequest(async (req: any, res: any)
       reviews.push({
         id: doc.id,
         ...reviewData,
-        createdAt: reviewData.createdAt?.toDate().toISOString()
+        createdAt: reviewData.createdAt?.toDate().toISOString(),
       });
     }
 
@@ -109,7 +109,7 @@ export const addReview = functions.https.onRequest(async (req: any, res: any) =>
       reviewerId,
       rating,
       comment,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
     // Update seller's average rating
@@ -134,7 +134,7 @@ export const addReview = functions.https.onRequest(async (req: any, res: any) =>
       const newRating = reviewCount > 0 ? totalRating / reviewCount : rating;
 
       await sellerDocRef.update({
-        ratingAverage: newRating
+        ratingAverage: newRating,
       });
     }
 
@@ -142,7 +142,7 @@ export const addReview = functions.https.onRequest(async (req: any, res: any) =>
     res.status(201).json({
       id: reviewDoc.id,
       ...reviewData,
-      createdAt: reviewData.createdAt?.toDate().toISOString()
+      createdAt: reviewData.createdAt?.toDate().toISOString(),
     });
   } catch (error) {
     logger.error('Error adding review', error);

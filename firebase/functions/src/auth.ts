@@ -3,6 +3,10 @@ import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
 
+// Initialize app
+admin.initializeApp();
+
+
 const db = admin.firestore();
 
 /**
@@ -49,8 +53,8 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
           name: userData.name || "",
           email: userData.email || "",
           profileImageUrl: userData.profileImageUrl || "",
-          ratingAverage: userData.ratingAverage || 0
-      }
+          ratingAverage: userData.ratingAverage || 0,
+      },
     });
     } catch (authError) {
       logger.error("Authentication error", authError);
@@ -220,7 +224,7 @@ export const updateUserProfile = functions.https.onRequest(async (req: any, res:
       email: userData.email || "",
       profileImageUrl,
       ratingAverage: userData.ratingAverage || 0,
-      createdAt: userData.createdAt?.toDate().toISOString() || ""
+      createdAt: userData.createdAt?.toDate().toISOString() || "",
     });
   } catch (error) {
     logger.error("Update user profile error", error);
@@ -259,7 +263,7 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
     const userRecord = await admin.auth().createUser({
       email,
       password,
-      displayName: name
+      displayName: name,
     });
 
     // Get the user's UID
@@ -286,8 +290,8 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
         name,
         email,
         profileImageUrl: "",
-        ratingAverage: 0.0
-      }
+        ratingAverage: 0.0,
+      },
     });
     return; // Explicit return
   } catch (error) {
