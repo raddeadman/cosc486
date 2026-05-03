@@ -7,7 +7,7 @@ final class ReviewViewModel: ObservableObject {
     private let reviewService = ReviewService()
 
     func addReview(_ review: Review) {
-        reviewService.addReview(review)
+        reviewService.addReview(sellerId: review.sellerId, reviewerId: review.reviewerId, rating: review.rating, comment: review.comment)
         fetchReviews(sellerId: review.sellerId)
     }
 
@@ -22,3 +22,4 @@ final class ReviewViewModel: ObservableObject {
         return sum / Double(sellerReviews.count)
     }
 }
+

@@ -22,7 +22,7 @@ enum StorageError: Error, LocalizedError {
 }
 
 final class StorageService {
-    private let baseURL = "https://api.example.com/v1"
+    private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
     // MARK: - Upload Image Data
 
@@ -31,10 +31,13 @@ final class StorageService {
             return Fail(error: StorageError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/uploads/images"
+        let urlString = "\(baseURL)/uploadImageData"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
-        request.setValue("multipart/form-data", forHTTPHeaderField: "Content-Type")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         // Create multipart form data
         let boundary = "Boundary-\(UUID().uuidString)"
@@ -44,7 +47,7 @@ final class StorageService {
 
         // Add file data
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name="file"; filename=\\"\(fileName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
         body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!) // Assuming JPEG, adjust if needed
         body.append(file)
 
@@ -54,8 +57,10 @@ final class StorageService {
         request.httpBody = body
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: UploadResponse.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(UploadResponse.self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -66,3 +71,4 @@ final class StorageService {
 struct UploadResponse: Codable {
     let url: String
 }
+

@@ -22,7 +22,7 @@ enum ProductError: Error, LocalizedError {
 }
 
 final class ProductService {
-    private let baseURL = "https://api.example.com/v1"
+    private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
     // MARK: - Fetch Products
 
@@ -34,7 +34,7 @@ final class ProductService {
         lng: Double? = nil,
         radiusKm: Int? = nil
     ) -> AnyPublisher<[Product], Error> {
-        var urlString = "\(baseURL)/products"
+        var urlString = "\(baseURL)/fetchProducts"
         if let search = search, !search.isEmpty {
             urlString += "?search=\(search)"
         }
@@ -68,8 +68,10 @@ final class ProductService {
         request.httpMethod = "GET"
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: [Product].self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode([Product].self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -89,7 +91,7 @@ final class ProductService {
             return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/products"
+        let urlString = "\(baseURL)/submitPlaceholderProduct"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -117,8 +119,10 @@ final class ProductService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: Product.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(Product.self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -128,14 +132,16 @@ final class ProductService {
     func updateProductAvailability(
         productId: String,
         userId: String,
-        isAvailable: Bool,
-        token: String
+        isAvailable: Bool
     ) -> AnyPublisher<Product, Error> {
-        let urlString = "\(baseURL)/users/\(userId)/products/\(productId)/availability"
+        let urlString = "\(baseURL)/updateProductAvailability"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let requestBody: [String: Any] = [
             "isAvailable": isAvailable
@@ -148,8 +154,10 @@ final class ProductService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: Product.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(Product.self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }

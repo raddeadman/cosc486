@@ -22,39 +22,47 @@ enum FavoritesError: Error, LocalizedError {
 }
 
 final class FavoritesService {
-    private let baseURL = "https://api.example.com/v1"
+    private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
     // MARK: - Fetch Favorite Products
 
-    func fetchFavoriteProducts(userId: String, token: String) -> AnyPublisher<[Product], Error> {
+    func fetchFavoriteProducts(userId: String) -> AnyPublisher<[Product], Error> {
         guard !userId.isEmpty else {
             return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/users/\(userId)/favorites"
+        let urlString = "\(baseURL)/fetchFavoriteProducts"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
+
+        if let token = TokenManager.get() {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: [Product].self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode([Product].self, from: response.data)
+    }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
     // MARK: - Add Favorite
 
-    func addFavorite(productId: String, userId: String, token: String) -> AnyPublisher<Bool, Error> {
+    func addFavorite(productId: String, userId: String) -> AnyPublisher<Bool, Error> {
         guard !productId.isEmpty, !userId.isEmpty else {
             return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/users/\(userId)/favorites"
+        let urlString = "\(baseURL)/addFavorite"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    }
 
         let requestBody: [String: Any] = [
             "productId": productId
@@ -64,7 +72,7 @@ final class FavoritesService {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
         } catch {
             return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
-        }
+}
 
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { _ in true }
@@ -74,15 +82,18 @@ final class FavoritesService {
 
     // MARK: - Remove Favorite
 
-    func removeFavorite(productId: String, userId: String, token: String) -> AnyPublisher<Bool, Error> {
+    func removeFavorite(productId: String, userId: String) -> AnyPublisher<Bool, Error> {
         guard !productId.isEmpty, !userId.isEmpty else {
             return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/users/\(userId)/favorites/\(productId)"
+        let urlString = "\(baseURL)/removeFavorite"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "DELETE"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { _ in true }

@@ -31,7 +31,7 @@ final class AuthService {
             return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/auth/login"
+        let urlString = "https://us-central1-openmarketmobile.cloudfunctions.net/login"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -48,9 +48,12 @@ final class AuthService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: LoginResponse.self, decoder: JSONDecoder())
-            .map(\.user)
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                let loginResponse = try decoder.decode(LoginResponse.self, from: response.data)
+                TokenManager.save(token: loginResponse.token)  // Save token here
+                return loginResponse.user
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -62,7 +65,7 @@ final class AuthService {
             return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/auth/register"
+        let urlString = "https://us-central1-openmarketmobile.cloudfunctions.net/signUp"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -80,23 +83,32 @@ final class AuthService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: LoginResponse.self, decoder: JSONDecoder())
-            .map(\.user)
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                let loginResponse = try decoder.decode(LoginResponse.self, from: response.data)
+                TokenManager.save(token: loginResponse.token)  // Save token here
+                return loginResponse.user
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
     // MARK: - Logout
 
-    func logout(token: String) -> AnyPublisher<Bool, Error> {
-        let urlString = "\(baseURL)/auth/logout"
+    func logout() -> AnyPublisher<Bool, Error> {
+        let urlString = "https://us-central1-openmarketmobile.cloudfunctions.net/logout"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
+
+        if let token = TokenManager.get() {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { _ in true }
+            .tryMap { _ in
+                TokenManager.clear()  // Clear token after logout
+                return true
+    }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -104,16 +116,22 @@ final class AuthService {
     // MARK: - Fetch User Profile
 
     func fetchUserProfile(uid: String) -> AnyPublisher<User, Error> {
-        let urlString = "\(baseURL)/users/\(uid)"
+        let urlString = "https://us-central1-openmarketmobile.cloudfunctions.net/fetchUserProfile"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
 
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: User.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(User.self, from: response.data)
+    }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
-    }
+}
 
     // MARK: - Update User Profile
 
@@ -122,10 +140,14 @@ final class AuthService {
             return Fail(error: AuthError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/users/\(uid)"
+        let urlString = "https://us-central1-openmarketmobile.cloudfunctions.net/updateUserProfile"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let requestBody: [String: Any] = [
             "name": name,
@@ -139,8 +161,10 @@ final class AuthService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: User.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(User.self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }

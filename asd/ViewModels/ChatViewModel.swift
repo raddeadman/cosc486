@@ -21,3 +21,4 @@ final class ChatViewModel: ObservableObject {
         fetchMessages(chatId: chatId)
     }
 }
+

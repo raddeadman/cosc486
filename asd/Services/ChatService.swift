@@ -22,25 +22,27 @@ enum ChatError: Error, LocalizedError {
 }
 
 final class ChatService {
-    private let baseURL = "https://api.example.com/v1"
+    private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
     // MARK: - Get or Create Chat
 
     func getOrCreateChat(
         buyerId: String,
         sellerId: String,
-        productId: String,
-        token: String
+        productId: String
     ) -> AnyPublisher<Chat, Error> {
         guard !buyerId.isEmpty, !sellerId.isEmpty, !productId.isEmpty else {
             return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/chats"
+        let urlString = "\(baseURL)/getOrCreateChat"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = TokenManager.get() {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let requestBody: [String: Any] = [
             "buyerId": buyerId,
@@ -55,26 +57,33 @@ final class ChatService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: Chat.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(Chat.self, from: response.data)
+    }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
     // MARK: - Fetch Chats
 
-    func fetchChats(token: String) -> AnyPublisher<[Chat], Error> {
-        let urlString = "\(baseURL)/chats"
+    func fetchChats() -> AnyPublisher<[Chat], Error> {
+        let urlString = "\(baseURL)/fetchChats"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
+
+        if let token = TokenManager.get() {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: [Chat].self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode([Chat].self, from: response.data)
+    }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
-    }
+}
 
     // MARK: - Fetch Messages
 
@@ -83,29 +92,38 @@ final class ChatService {
             return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/chats/\(chatId)/messages"
+        let urlString = "\(baseURL)/fetchMessages"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
 
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: [Message].self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode([Message].self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 
     // MARK: - Send Message
 
-    func sendMessage(text: String, chatId: String, token: String) -> AnyPublisher<Message, Error> {
+    func sendMessage(text: String, chatId: String) -> AnyPublisher<Message, Error> {
         guard !text.isEmpty, !chatId.isEmpty else {
             return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/chats/\(chatId)/messages"
+        let urlString = "\(baseURL)/sendMessage"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let requestBody: [String: Any] = [
             "text": text
@@ -118,9 +136,12 @@ final class ChatService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: Message.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(Message.self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 }
+

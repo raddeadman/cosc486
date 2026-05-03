@@ -34,3 +34,4 @@ final class FavoritesViewModel: ObservableObject {
         favoriteProducts = favoritesService.fetchFavoriteProducts(userId: userId)
     }
 }
+

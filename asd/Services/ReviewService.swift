@@ -22,7 +22,7 @@ enum ReviewError: Error, LocalizedError {
 }
 
 final class ReviewService {
-    private let baseURL = "https://api.example.com/v1"
+    private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
     // MARK: - Fetch Reviews
 
@@ -31,13 +31,15 @@ final class ReviewService {
             return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/reviews?sellerId=\(sellerId)"
+        let urlString = "\(baseURL)/fetchReviews?sellerId=\(sellerId)"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: [Review].self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode([Review].self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -54,10 +56,14 @@ final class ReviewService {
             return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/reviews"
+        let urlString = "\(baseURL)/addReview"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         let requestBody: [String: Any] = [
             "sellerId": sellerId,
@@ -73,9 +79,12 @@ final class ReviewService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap(\.response)
-            .decode(type: Review.self, decoder: JSONDecoder())
+            .tryMap { response in
+                let decoder = JSONDecoder()
+                return try decoder.decode(Review.self, from: response.data)
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 }
+
