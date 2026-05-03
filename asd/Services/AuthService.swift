@@ -176,16 +176,3 @@ struct LoginResponse: Codable {
     let token: String
     let user: User
 }
-
-extension Data {
-    fileprivate func response() throws -> (data: Data) {
-        guard let httpResponse = HTTPURLResponse(
-            statusCode: 200,
-            headers: [:],
-            url: URL(string: "https://api.example.com/v1")!
-        ) else {
-            throw URLError(.badServerResponse)
-        }
-        return (self, httpResponse)
-    }
-}

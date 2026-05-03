@@ -5,14 +5,26 @@ final class ReviewViewModel: ObservableObject {
     @Published var reviews: [Review] = []
 
     private let reviewService = ReviewService()
+    private var cancellables = Set<AnyCancellable>()
 
     func addReview(_ review: Review) {
         reviewService.addReview(sellerId: review.sellerId, reviewerId: review.reviewerId, rating: review.rating, comment: review.comment)
-        fetchReviews(sellerId: review.sellerId)
+            .sink { completion in
+                // Handle completion if needed
+            } receiveValue: { _ in
+                self.fetchReviews(sellerId: review.sellerId)
+            }
+            .store(in: &cancellables)
     }
 
     func fetchReviews(sellerId: String) {
-        reviews = reviewService.fetchReviews(sellerId: sellerId)
+        reviewService.fetchReviews(sellerId: sellerId)
+            .sink { completion in
+                // Handle completion if needed
+            } receiveValue: { reviews in
+                self.reviews = reviews
+            }
+            .store(in: &cancellables)
     }
 
     func averageRating(for sellerId: String) -> Double {

@@ -8,6 +8,7 @@ final class ProductViewModel: ObservableObject {
     @Published var selectedSort = "Date"
 
     private let productService = ProductService()
+    private var cancellables = Set<AnyCancellable>()
 
     var filteredProducts: [Product] {
         let searched = products.filter {
@@ -27,7 +28,13 @@ final class ProductViewModel: ObservableObject {
     }
 
     func fetchProducts() {
-        products = productService.fetchProducts()
+        productService.fetchProducts()
+            .sink { completion in
+                // Handle completion if needed
+            } receiveValue: { products in
+                self.products = products
+            }
+            .store(in: &cancellables)
     }
 
     func productsForSeller(userId: String) -> [Product] {
@@ -36,7 +43,10 @@ final class ProductViewModel: ObservableObject {
 
     func updateAvailability(product: Product, isAvailable: Bool, userId: String) {
         productService.updateProductAvailability(productId: product.id, userId: userId, isAvailable: isAvailable)
-        products = products.map { current in
+            .sink { completion in
+                // Handle completion if needed
+            } receiveValue: { updatedProduct in
+                self.products = self.products.map { current in
             guard current.id == product.id else { return current }
             return Product(
                 id: current.id,
@@ -56,5 +66,7 @@ final class ProductViewModel: ObservableObject {
             )
         }
     }
+            .store(in: &cancellables)
+}
 }
 
