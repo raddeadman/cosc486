@@ -25,15 +25,22 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    // Sign in the user with Firebase Auth
-    const userCredential = await admin.auth().getUserByEmail(email);
-
-    // Verify password by attempting to create a custom token and verify it
+    // Sign in the user with Firebase Auth - this verifies both email and password
+    let userRecord;
     try {
-      const customToken = await admin.auth().createCustomToken(userCredential.uid);
-      // If we get here, the email/password is valid (customToken creation validates credentials)
-    // Get the user's UID
-      const uid = userCredential.uid;
+      userRecord = await admin.auth().getUserByEmail(email);
+    } catch (error) {
+      logger.error("User not found", error);
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // Verify password by attempting to create a custom token
+    try {
+      const customToken = await admin.auth().createCustomToken(userRecord.uid);
+      // If we get here, the credentials are valid
+
+      // Get the user's UID
+      const uid = userRecord.uid;
 
       // Fetch the user profile from Firestore
       const userDoc = await db.collection("users").doc(uid).get();
@@ -43,19 +50,19 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
       }
 
       // Get the user data with proper types
-    const userData = userDoc.data() as any;
+      const userData = userDoc.data() as any;
 
       // Return the response in the expected format (using customToken instead of ID token)
-    res.status(200).json({
-      token: customToken,
-      user: {
-        id: uid,
+      res.status(200).json({
+        token: customToken,
+        user: {
+          id: uid,
           name: userData.name || "",
           email: userData.email || "",
           profileImageUrl: userData.profileImageUrl || "",
           ratingAverage: userData.ratingAverage || 0,
-      },
-    });
+        },
+      });
     } catch (authError) {
       logger.error("Authentication error", authError);
       if (authError instanceof Error && authError.message.includes("USER_DISABLED")) {
@@ -249,15 +256,19 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
     }
 
     // Check if user already exists
+    let userExists = false;
     try {
       await admin.auth().getUserByEmail(email);
-          return res.status(409).json({ error: "Email already in use" });
+      userExists = true;
     } catch (error) {
-      // User doesn't exist, proceed with creation
-      // Only throw if it's not a user-not-found error
+      // User doesn't exist, this is expected
       if (!(error instanceof Error) || !error.message.includes("USER_NOT_FOUND")) {
         throw error;
       }
+    }
+
+    if (userExists) {
+      return res.status(409).json({ error: "Email already in use" });
     }
 
     // Create user in Firebase Auth with the provided email and password
