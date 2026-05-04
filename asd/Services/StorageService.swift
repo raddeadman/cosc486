@@ -45,16 +45,22 @@ final class StorageService {
 
         var body = Data()
 
+        // RFC 5987-style safety: quote filename and escape `\` / `"` so multipart headers stay valid.
+        let escapedName = fileName
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+
         // Add file data
         body.append("--\(boundary)\r\n".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
-        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!) // Assuming JPEG, adjust if needed
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(escapedName)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
         body.append(file)
 
         // Close the multipart form
         body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
 
         request.httpBody = body
+        request.setValue("\(body.count)", forHTTPHeaderField: "Content-Length")
 
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { output in

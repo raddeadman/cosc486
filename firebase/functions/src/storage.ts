@@ -36,43 +36,74 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
       }
     }
 
-    // Process the file using busboy
-    const bb = busboy({ headers: req.headers });
-    let fileBuffer: Buffer;
-    let fileName: string;
+    // Buffer full body before busboy: streaming req.pipe(bb) often hits
+    // "Unexpected end of form" behind Cloud Functions / proxy request handling.
+    const rawBody = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (chunk: Buffer) => chunks.push(chunk));
+      req.on("end", () => resolve(Buffer.concat(chunks)));
+      req.on("error", reject);
+    });
 
-    bb.on('file', (fieldname: string, file: any, info: { filename: string }) => {
-      if (fieldname === 'file') {
-        fileName = info.filename;
+    if (!rawBody.length) {
+      return res.status(400).json({ error: "Empty request body" });
+    }
+
+    const bb = busboy({ headers: req.headers });
+    let fileBuffer: Buffer | undefined;
+    let fileName: string | undefined;
+
+    bb.on("file", (fieldname: string, file: NodeJS.ReadableStream, info: { filename?: string }) => {
+      if (fieldname === "file") {
+        fileName = info.filename || "upload.bin";
         const chunks: Uint8Array[] = [];
 
-        file.on('data', (chunk: Uint8Array) => {
+        file.on("data", (chunk: Uint8Array) => {
           chunks.push(chunk);
         });
 
-        file.on('end', () => {
+        file.on("end", () => {
           fileBuffer = Buffer.concat(chunks);
         });
+      } else {
+        file.resume();
       }
     });
 
-    bb.on('finish', async () => {
+    bb.on("error", (err: Error) => {
+      logger.error("Multipart parse error", err);
+      if (!res.headersSent) {
+        res.status(400).json({ error: err.message || "Invalid multipart body" });
+      }
+    });
+
+    bb.on("finish", async () => {
       try {
-        if (!fileBuffer || !fileName) {
-          return res.status(400).json({ error: "No file provided" });
+        if (!fileBuffer?.length || !fileName) {
+          if (!res.headersSent) {
+            return res.status(400).json({ error: "No file provided" });
+          }
+          return;
         }
 
         // Create a unique filename
-        const fileExtension = fileName.split('.').pop();
-        const uniqueFileName = `${Date.now()}.${fileExtension}`;
+        const fileExtension = fileName.split(".").pop()?.toLowerCase();
+        const uniqueFileName = `${Date.now()}.${fileExtension || "jpg"}`;
+        const ext = fileExtension || "jpeg";
+        const mime =
+          ext === "jpg" || ext === "jpeg" ? "image/jpeg" :
+            ext === "png" ? "image/png" :
+              ext === "gif" ? "image/gif" :
+                ext === "webp" ? "image/webp" :
+                  `image/${ext}`;
 
         // Upload to Firebase Storage
         const file = bucket.file(`media-uploads/${uniqueFileName}`);
         await file.save(fileBuffer, {
           metadata: {
-            contentType: 'image/' + (fileExtension || 'jpg'),
+            contentType: mime,
             metadata: {
-              uploadedBy: req.headers['x-user-id'] || 'anonymous',
+              uploadedBy: (req.headers["x-user-id"] as string) || "anonymous",
             },
           },
         });
@@ -81,16 +112,20 @@ export const uploadImageData = functions.https.onRequest(async (req: any, res: a
         await file.makePublic();
 
         // Return the public URL
-        res.status(201).json({
-          url: `https://storage.googleapis.com/openmarketmobile.firebasestorage.app/media-uploads/${uniqueFileName}`,
-        });
+        if (!res.headersSent) {
+          res.status(201).json({
+            url: `https://storage.googleapis.com/openmarketmobile.firebasestorage.app/media-uploads/${uniqueFileName}`,
+          });
+        }
       } catch (error) {
         logger.error("Image upload error", error);
-        return res.status(500).json({ error: "Failed to upload image" });
+        if (!res.headersSent) {
+          return res.status(500).json({ error: "Failed to upload image" });
+        }
       }
     });
 
-    req.pipe(bb);
+    bb.end(rawBody);
   } catch (error) {
     logger.error("Upload handler error", error);
     return res.status(500).json({ error: `Upload failed: ${error instanceof Error ? error.message : String(error)}` });
