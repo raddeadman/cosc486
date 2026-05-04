@@ -77,21 +77,23 @@ final class AuthViewModel: ObservableObject {
             // Check if there's an existing session
             if auth.currentUser != nil {
                 // User is already signed in, fetch their profile
-                let userProfile = try await authService.fetchUserProfile(uid: auth.currentUser!.uid)
+                for await userProfile in authService.fetchUserProfile(uid: auth.currentUser!.uid).values {
                 DispatchQueue.main.async { [weak self] in
                     self?.currentUser = userProfile
                     self?.isLoggedIn = true
                     self?.userDisplayName = userProfile.name.isEmpty ? "Guest" : userProfile.name
                             }
-                } else {
+                    break // We only need the first value
+                }
+            } else {
                 // No session, try to sign in anonymously (for testing) or require email login
                 // For production, you might want to redirect to login view instead
                 print("No active session. User needs to log in.")
-                }
-        } catch {
-            print("Failed to fetch current user: $error")
         }
-    }
+            } catch {
+            print("Failed to fetch current user: $error")
+}
+        }
 
     // MARK: - Auth State Listener
 
@@ -105,28 +107,29 @@ final class AuthViewModel: ObservableObject {
                         guard let self = self else { return }
 
                         do {
-                            let userProfile = try await self.authService.fetchUserProfile(uid: user.uid)
-
+                            for await userProfile in self.authService.fetchUserProfile(uid: user.uid).values {
                             // Update @Published properties from the main queue
                             DispatchQueue.main.async {
                                 self.currentUser = userProfile
                                 self.isLoggedIn = true
                                 self.userDisplayName = userProfile.name.isEmpty ? "Guest" : userProfile.name
-}
-            } catch {
+            }
+                break // We only need the first value
+            }
+                        } catch {
                             print("Failed to fetch user profile: $error")
                             DispatchQueue.main.async {
                                 self.currentUser = nil
                                 self.isLoggedIn = false
-}
         }
     }
+}
                 } else {
                     // User is signed out - update on main thread
                     self?.currentUser = nil
                     self?.isLoggedIn = false
                     self?.userDisplayName = nil
-}
+                }
             }
         }
     }
@@ -135,13 +138,11 @@ final class AuthViewModel: ObservableObject {
         Task.detached { [weak self] in
             guard let self = self, let currentUser = self.currentUser else { return }
 
-            do {
-                let userProfile = try await self.authService.fetchUserProfile(uid: currentUser.id)
+            for await userProfile in self.authService.fetchUserProfile(uid: currentUser.id).values {
                 DispatchQueue.main.async {
                     self.currentUser = userProfile
                 }
-            } catch {
-                print("Failed to refresh user profile: $error")
+                break // We only need the first value
             }
         }
     }

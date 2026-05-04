@@ -7,6 +7,7 @@ final class LocationViewModel: NSObject, ObservableObject, CLLocationManagerDele
     @Published var userLocation: CLLocation?
 
     private let locationManager = CLLocationManager()
+    private var cancellables = Set<AnyCancellable>()
 
     override init() {
         super.init()
@@ -26,3 +27,4 @@ final class LocationViewModel: NSObject, ObservableObject, CLLocationManagerDele
         userLocation = locations.last
     }
 }
+

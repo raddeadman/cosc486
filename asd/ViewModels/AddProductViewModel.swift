@@ -21,6 +21,7 @@ final class AddProductViewModel: ObservableObject {
 
     private let productService = ProductService()
     private let locationService = LocationService()
+    private var cancellables = Set<AnyCancellable>()
 
     var pinCoordinate: CLLocationCoordinate2D? {
         guard let lat = latitude, let lon = longitude else { return nil }
