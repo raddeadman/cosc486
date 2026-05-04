@@ -57,10 +57,17 @@ final class StorageService {
         request.httpBody = body
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { output in
+                guard let http = output.response as? HTTPURLResponse else {
+                    throw StorageError.serverError("Invalid server response")
+                }
+                guard (200...299).contains(http.statusCode) else {
+                    let text = String(data: output.data, encoding: .utf8) ?? "Upload failed"
+                    throw StorageError.serverError(text)
+                }
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode(UploadResponse.self, from: response.data)
+                return try decoder.decode(UploadResponse.self, from: output.data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()

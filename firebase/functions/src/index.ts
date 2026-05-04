@@ -68,6 +68,7 @@ export const onAuthUserCreate = functions.auth.user().onCreate(async (user, cont
       email: user.email || "",
       profileImageUrl: profileImageUrl,
       ratingAverage: 0.0,
+      ratingCount: 0,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
@@ -117,8 +118,10 @@ export const getOrCreateChat = chat.getOrCreateChat;
 export const fetchChats = chat.fetchChats;
 export const fetchMessages = chat.fetchMessages;
 export const sendMessage = chat.sendMessage;
+export const resolveChat = chat.resolveChat;
 
 export const fetchReviews = reviews.fetchReviews;
+export const fetchProductReviews = reviews.fetchProductReviews;
 export const addReview = reviews.addReview;
 
 export const uploadImageData = storage.uploadImageData;

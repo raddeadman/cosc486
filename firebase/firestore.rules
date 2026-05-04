@@ -91,14 +91,14 @@ service cloud.firestore {
       allow update, delete: if false; // Messages are immutable
     }
 
-    // Reviews collection - seller reviews
+    // Reviews collection (writes primarily via Cloud Functions)
     match /reviews/{reviewId} {
-      allow read: if request.auth != null
-                  && (request.auth.uid == resource.data.sellerId || request.auth.uid == resource.data.reviewerId);
+      allow read: if request.auth != null;
 
       allow create: if request.auth != null
                    && request.auth.uid == request.resource.data.reviewerId
                    && request.resource.data.sellerId is string
+                   && request.resource.data.productId is string
                    && request.resource.data.rating >= 1
                    && request.resource.data.rating <= 5
                    && request.resource.data.comment is string;

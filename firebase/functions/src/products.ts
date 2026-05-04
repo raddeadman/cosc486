@@ -104,7 +104,11 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req: an
     }
 
     // Get product data from request body
-    const { title, description, category, priceText, locationName, latitude, longitude } = req.body;
+    const { title, description, category, priceText, locationName, latitude, longitude, imageUrls } = req.body;
+
+    const imageList: string[] = Array.isArray(imageUrls)
+      ? (imageUrls as unknown[]).filter((u) => typeof u === "string") as string[]
+      : [];
 
     if (!title || !description || !category || !priceText || !locationName || latitude === undefined || longitude === undefined) {
       return res.status(400).json({ error: "All required fields are missing" });
@@ -134,13 +138,15 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req: an
       description,
       price,
       category,
-      imageUrls: [], // Empty array for now, will be populated via media uploads
+      imageUrls: imageList,
       sellerId,
       sellerName,
       locationName,
       latitude,
       longitude,
       rating: 0.0,
+      reviewAverage: 0.0,
+      reviewCount: 0,
       isAvailable: true,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       // Add GeoPoint for geolocation queries

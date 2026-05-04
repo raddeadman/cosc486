@@ -14,6 +14,9 @@ struct Product: Identifiable, Codable, Hashable {
     let latitude: Double
     let longitude: Double
     let rating: Double
+    /// Average star rating from product-specific reviews (1–5 scale).
+    let reviewAverage: Double
+    let reviewCount: Int
     let isAvailable: Bool
     let createdAt: Date
 
@@ -34,6 +37,8 @@ struct Product: Identifiable, Codable, Hashable {
         latitude: Double,
         longitude: Double,
         rating: Double,
+        reviewAverage: Double = 0,
+        reviewCount: Int = 0,
         isAvailable: Bool,
         createdAt: Date
     ) {
@@ -49,12 +54,14 @@ struct Product: Identifiable, Codable, Hashable {
         self.latitude = latitude
         self.longitude = longitude
         self.rating = rating
+        self.reviewAverage = reviewAverage
+        self.reviewCount = reviewCount
         self.isAvailable = isAvailable
         self.createdAt = createdAt
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, title, description, price, category, imageUrls, sellerId, sellerName, locationName, latitude, longitude, rating, isAvailable, createdAt
+        case id, title, description, price, category, imageUrls, sellerId, sellerName, locationName, latitude, longitude, rating, reviewAverage, reviewCount, isAvailable, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -76,6 +83,10 @@ struct Product: Identifiable, Codable, Hashable {
         let ratingString = (try? container.decodeIfPresent(String.self, forKey: .rating)) ?? nil
         rating = (try? container.decode(Double.self, forKey: .rating)) ?? ratingString.flatMap { Double($0) } ?? 0.0
         isAvailable = try container.decodeIfPresent(Bool.self, forKey: .isAvailable) ?? false
+        let reviewAvgStr = (try? container.decodeIfPresent(String.self, forKey: .reviewAverage)) ?? nil
+        reviewAverage = (try? container.decode(Double.self, forKey: .reviewAverage)) ?? reviewAvgStr.flatMap { Double($0) } ?? 0.0
+        let reviewCountStr = (try? container.decodeIfPresent(String.self, forKey: .reviewCount)) ?? nil
+        reviewCount = (try? container.decode(Int.self, forKey: .reviewCount)) ?? reviewCountStr.flatMap { Int($0) } ?? 0
 
         if let date = try? container.decode(Date.self, forKey: .createdAt) {
             createdAt = date

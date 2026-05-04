@@ -24,22 +24,88 @@ enum ReviewError: Error, LocalizedError {
 final class ReviewService {
     private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
-    // MARK: - Fetch Reviews
+    private struct APIErrorResponse: Decodable {
+        let error: String
+    }
+
+    private func validatedData(
+        from output: URLSession.DataTaskPublisher.Output,
+        successCodes: Set<Int>
+    ) throws -> Data {
+        guard let httpResponse = output.response as? HTTPURLResponse else {
+            throw ReviewError.serverError("Invalid server response")
+        }
+        if successCodes.contains(httpResponse.statusCode) {
+            return output.data
+        }
+        let msg: String
+        if let api = try? JSONDecoder().decode(APIErrorResponse.self, from: output.data) {
+            msg = api.error
+        } else if let text = String(data: output.data, encoding: .utf8), !text.isEmpty {
+            msg = text
+        } else {
+            msg = "Unexpected server error"
+        }
+        throw ReviewError.serverError("Request failed (\(httpResponse.statusCode)): \(msg)")
+    }
+
+    // MARK: - Fetch Reviews (seller)
 
     func fetchReviews(sellerId: String) -> AnyPublisher<[Review], Error> {
         guard !sellerId.isEmpty else {
             return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/fetchReviews?sellerId=\(sellerId)"
-        var request = URLRequest(url: URL(string: urlString)!)
+        var components = URLComponents(string: "\(baseURL)/fetchReviews")!
+        components.queryItems = [URLQueryItem(name: "sellerId", value: sellerId)]
+        guard let url = components.url else {
+            return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] output in
+                guard let self else { throw ReviewError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode([Review].self, from: response.data)
+                return try decoder.decode([Review].self, from: data)
+            }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
+    // MARK: - Fetch product reviews
+
+    func fetchProductReviews(productId: String) -> AnyPublisher<[Review], Error> {
+        guard !productId.isEmpty else {
+            return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        var components = URLComponents(string: "\(baseURL)/fetchProductReviews")!
+        components.queryItems = [URLQueryItem(name: "productId", value: productId)]
+        guard let url = components.url else {
+            return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { [weak self] output in
+                guard let self else { throw ReviewError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [200])
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode([Review].self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -48,12 +114,12 @@ final class ReviewService {
     // MARK: - Add Review
 
     func addReview(
+        productId: String,
         sellerId: String,
-        reviewerId: String,
         rating: Int,
-        comment: String? = nil
+        comment: String?
     ) -> AnyPublisher<Review, Error> {
-        guard !sellerId.isEmpty, !reviewerId.isEmpty else {
+        guard !productId.isEmpty, !sellerId.isEmpty else {
             return Fail(error: ReviewError.invalidParameters).eraseToAnyPublisher()
         }
 
@@ -67,8 +133,8 @@ final class ReviewService {
         }
 
         let requestBody: [String: Any] = [
+            "productId": productId,
             "sellerId": sellerId,
-            "reviewerId": reviewerId,
             "rating": rating,
             "comment": comment ?? ""
         ]
@@ -80,13 +146,14 @@ final class ReviewService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] output in
+                guard let self else { throw ReviewError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [201])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode(Review.self, from: response.data)
+                return try decoder.decode(Review.self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
 }
-

@@ -6,6 +6,9 @@ final class ProductViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var selectedCategory = "All"
     @Published var selectedSort = "Date"
+    @Published var isLoading = false
+    @Published var isRefreshing = false
+    @Published var hasLoadedOnce = false
     
     private let productService = ProductService()
     private var cancellables = Set<AnyCancellable>()
@@ -27,12 +30,24 @@ final class ProductViewModel: ObservableObject {
         }
     }
     
-    func fetchProducts() {
+    func fetchProducts(isRefresh: Bool = false) {
+        if isRefresh && hasLoadedOnce && !products.isEmpty {
+            isRefreshing = true
+        } else {
+            isLoading = true
+        }
         productService.fetchProducts()
-            .sink { completion in
-                // Handle completion if needed
-            } receiveValue: { products in
+            .sink { [weak self] completion in
+                guard let self else { return }
+                self.isLoading = false
+                self.isRefreshing = false
+                if case .failure = completion {
+                    if self.products.isEmpty { self.products = [] }
+                }
+            } receiveValue: { [weak self] products in
+                guard let self else { return }
                 self.products = products
+                self.hasLoadedOnce = true
             }
             .store(in: &cancellables)
     }
@@ -61,6 +76,8 @@ final class ProductViewModel: ObservableObject {
                         latitude: current.latitude,
                         longitude: current.longitude,
                         rating: current.rating,
+                        reviewAverage: current.reviewAverage,
+                        reviewCount: current.reviewCount,
                         isAvailable: isAvailable,
                         createdAt: current.createdAt
                     )

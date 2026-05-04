@@ -6,9 +6,15 @@ final class ChatViewModel: ObservableObject {
     @Published var messages: [Message] = []
     @Published var isLoadingChats = false
     @Published var isLoadingMessages = false
+    @Published var isRefreshingMessages = false
     @Published var isSendingMessage = false
+    @Published var isResolvingChat = false
+    @Published var hasLoadedMessagesOnce = false
+    @Published var hasLoadedChatsOnce = false
     @Published var listErrorMessage: String?
     @Published var messageErrorMessage: String?
+    @Published var detailProduct: Product?
+    @Published var detailChatStatus: String?
 
     private let chatService = ChatService()
     private let productService = ProductService()
@@ -36,6 +42,7 @@ final class ChatViewModel: ObservableObject {
                     self.listErrorMessage = error.localizedDescription
                 }
             } receiveValue: { chats in
+                self.hasLoadedChatsOnce = true
                 self.composeChatListItems(from: chats, currentUserId: currentUserId)
             }
             .store(in: &cancellables)
@@ -65,7 +72,10 @@ final class ChatViewModel: ObservableObject {
                     counterpartUserId: counterpartUserId,
                     counterpartName: counterpartName,
                     lastMessagePreview: lastMessage.isEmpty ? "No messages yet" : lastMessage,
-                    updatedAt: chat.updatedAt
+                    updatedAt: chat.updatedAt,
+                    sellerId: chat.sellerId,
+                    buyerId: chat.buyerId,
+                    chatStatus: chat.chatStatus
                 )
             }
 
@@ -127,23 +137,82 @@ final class ChatViewModel: ObservableObject {
             counterpartUserId: existing.counterpartUserId,
             counterpartName: name,
             lastMessagePreview: existing.lastMessagePreview,
-            updatedAt: existing.updatedAt
+            updatedAt: existing.updatedAt,
+            sellerId: existing.sellerId,
+            buyerId: existing.buyerId,
+            chatStatus: existing.chatStatus
         )
     }
 
-    func fetchMessages(chatId: String) {
-        isLoadingMessages = true
+    func fetchMessages(chatId: String, isRefresh: Bool = false) {
+        if isRefresh && hasLoadedMessagesOnce && !messages.isEmpty {
+            isRefreshingMessages = true
+        } else {
+            isLoadingMessages = true
+        }
         messageErrorMessage = nil
         chatService.fetchMessages(chatId: chatId)
             .sink { [weak self] completion in
                 guard let self else { return }
                 self.isLoadingMessages = false
+                self.isRefreshingMessages = false
                 if case .failure(let error) = completion {
                     self.messages = []
                     self.messageErrorMessage = error.localizedDescription
                 }
-            } receiveValue: { messages in
+            } receiveValue: { [weak self] messages in
+                guard let self else { return }
                 self.messages = messages
+                self.hasLoadedMessagesOnce = true
+            }
+            .store(in: &cancellables)
+    }
+
+    func loadDetailProduct(productId: String?) {
+        guard let productId, !productId.isEmpty else {
+            detailProduct = nil
+            return
+        }
+        productService.fetchProduct(productId: productId)
+            .sink { [weak self] completion in
+                if case .failure = completion {
+                    self?.detailProduct = nil
+                }
+            } receiveValue: { [weak self] product in
+                self?.detailProduct = product
+            }
+            .store(in: &cancellables)
+    }
+
+    func resolveChat(chatId: String) {
+        isResolvingChat = true
+        messageErrorMessage = nil
+        chatService.resolveChat(chatId: chatId)
+            .sink { [weak self] completion in
+                guard let self else { return }
+                self.isResolvingChat = false
+                if case .failure(let error) = completion {
+                    self.messageErrorMessage = error.localizedDescription
+                }
+            } receiveValue: { [weak self] chat in
+                guard let self else { return }
+                self.detailChatStatus = chat.chatStatus ?? "resolved"
+                if let idx = self.chatListItems.firstIndex(where: { $0.chatId == chat.id }) {
+                    let e = self.chatListItems[idx]
+                    self.chatListItems[idx] = ChatListItem(
+                        chatId: e.chatId,
+                        productId: e.productId,
+                        productTitle: e.productTitle,
+                        productImageUrl: e.productImageUrl,
+                        counterpartUserId: e.counterpartUserId,
+                        counterpartName: e.counterpartName,
+                        lastMessagePreview: e.lastMessagePreview,
+                        updatedAt: e.updatedAt,
+                        sellerId: e.sellerId,
+                        buyerId: e.buyerId,
+                        chatStatus: chat.chatStatus ?? "resolved"
+                    )
+                }
             }
             .store(in: &cancellables)
     }
@@ -160,7 +229,7 @@ final class ChatViewModel: ObservableObject {
                     self.messageErrorMessage = error.localizedDescription
                 }
             } receiveValue: { _ in
-                self.fetchMessages(chatId: chatId)
+                self.fetchMessages(chatId: chatId, isRefresh: true)
             }
             .store(in: &cancellables)
     }

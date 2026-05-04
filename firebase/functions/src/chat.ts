@@ -58,6 +58,7 @@ export const getOrCreateChat = functions.https.onRequest(async (req: any, res: a
         productId,
         participantIds: [buyerId, sellerId],
         lastMessage: null,
+        chatStatus: "open",
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -72,10 +73,13 @@ export const getOrCreateChat = functions.https.onRequest(async (req: any, res: a
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    const chatData = (await chatRef.get()).data();
+    const chatData = (await chatRef.get()).data() as any;
     res.status(200).json({
       id: chatRef.id,
       ...chatData,
+      createdAt: chatData.createdAt?.toDate ? chatData.createdAt.toDate().toISOString() : undefined,
+      updatedAt: chatData.updatedAt?.toDate ? chatData.updatedAt.toDate().toISOString() : undefined,
+      resolvedAt: chatData.resolvedAt?.toDate ? chatData.resolvedAt.toDate().toISOString() : undefined,
     });
   } catch (error) {
     logger.error('Error getting or creating chat', error);
@@ -125,6 +129,7 @@ export const fetchChats = functions.https.onRequest(async (req: any, res: any) =
         ...chatData,
         createdAt: chatData.createdAt?.toDate().toISOString(),
         updatedAt: chatData.updatedAt?.toDate().toISOString(),
+        resolvedAt: chatData.resolvedAt?.toDate ? chatData.resolvedAt.toDate().toISOString() : undefined,
       });
     }
 
@@ -246,6 +251,10 @@ export const sendMessage = functions.https.onRequest(async (req: any, res: any) 
       return res.status(403).json({ error: "You are not authorized to send messages in this chat" });
     }
 
+    if (chatData.chatStatus === "resolved") {
+      return res.status(409).json({ error: "This chat has been resolved and is read-only" });
+    }
+
     const messageDoc = await db.collection('chats')
       .doc(chatId)
       .collection('messages')
@@ -270,6 +279,80 @@ export const sendMessage = functions.https.onRequest(async (req: any, res: any) 
   } catch (error) {
     logger.error('Error sending message', error);
     return res.status(500).json({ error: `Failed to send message: ${error instanceof Error ? error.message : String(error)}` });
+  }
+});
+
+/**
+ * Seller marks a chat as resolved after a sale (read-only thread afterward).
+ */
+export const resolveChat = functions.https.onRequest(async (req: any, res: any) => {
+  try {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    const idToken = authHeader.split("Bearer ")[1];
+    let currentUserId: string;
+    try {
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      currentUserId = decoded.uid;
+    } catch (error) {
+      logger.error("Invalid token for resolveChat", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const { chatId } = req.body;
+    if (!chatId || typeof chatId !== "string") {
+      return res.status(400).json({ error: "chatId is required" });
+    }
+
+    const chatRef = db.collection("chats").doc(chatId);
+    const chatDoc = await chatRef.get();
+    if (!chatDoc.exists) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    const chatData = chatDoc.data() as any;
+    if (!chatData.participantIds?.includes(currentUserId)) {
+      return res.status(403).json({ error: "You are not part of this chat" });
+    }
+    if (chatData.sellerId !== currentUserId) {
+      return res.status(403).json({ error: "Only the seller can resolve this chat" });
+    }
+    if (chatData.chatStatus === "resolved") {
+      const data = (await chatRef.get()).data() as any;
+      return res.status(200).json({
+        id: chatRef.id,
+        ...data,
+        createdAt: data.createdAt?.toDate().toISOString(),
+        updatedAt: data.updatedAt?.toDate().toISOString(),
+        resolvedAt: data.resolvedAt?.toDate().toISOString(),
+      });
+    }
+
+    await chatRef.update({
+      chatStatus: "resolved",
+      resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      resolvedBy: currentUserId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const updated = (await chatRef.get()).data() as any;
+    return res.status(200).json({
+      id: chatRef.id,
+      ...updated,
+      createdAt: updated.createdAt?.toDate().toISOString(),
+      updatedAt: updated.updatedAt?.toDate().toISOString(),
+      resolvedAt: updated.resolvedAt?.toDate().toISOString(),
+    });
+  } catch (error) {
+    logger.error("Error resolving chat", error);
+    return res.status(500).json({ error: "Failed to resolve chat" });
   }
 });
 

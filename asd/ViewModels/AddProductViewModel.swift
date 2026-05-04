@@ -22,6 +22,7 @@ final class AddProductViewModel: ObservableObject {
     @Published var submissionIsError = false
 
     private let productService = ProductService()
+    private let storageService = StorageService()
     private let locationService = LocationService()
     private var cancellables = Set<AnyCancellable>()
 
@@ -69,6 +70,27 @@ final class AddProductViewModel: ObservableObject {
         }
     }
 
+    private func uploadAllImages() -> AnyPublisher<[String], Error> {
+        guard !selectedImages.isEmpty else {
+            return Just([]).setFailureType(to: Error.self).eraseToAnyPublisher()
+        }
+
+        let first = storageService.uploadImageData(file: selectedImages[0], fileName: "listing-0.jpg")
+            .map { [$0.url] }
+            .eraseToAnyPublisher()
+
+        return selectedImages.dropFirst().enumerated().reduce(first) { accumulator, pair in
+            let (idx, data) = pair
+            let i = idx + 1
+            return accumulator.flatMap { urls in
+                self.storageService.uploadImageData(file: data, fileName: "listing-\(i).jpg")
+                    .map { urls + [$0.url] }
+                    .eraseToAnyPublisher()
+            }
+            .eraseToAnyPublisher()
+        }
+    }
+
     func submitProduct() {
         guard validate() else {
             submissionIsError = true
@@ -85,28 +107,36 @@ final class AddProductViewModel: ObservableObject {
         submissionIsError = false
         isSubmitting = true
 
-        productService.submitPlaceholderProduct(
-            title: title,
-            description: description,
-            category: category,
-            priceText: priceText,
-            locationName: locationName.trimmingCharacters(in: .whitespacesAndNewlines),
-            latitude: lat,
-            longitude: lon
-        )
-        .sink { [weak self] completion in
-            guard let self = self else { return }
-            self.isSubmitting = false
-            switch completion {
-            case .finished:
-                self.submissionIsError = false
-                self.submissionMessage = "Product submitted successfully."
-            case .failure(let error):
-                self.submissionIsError = true
-                self.submissionMessage = error.localizedDescription
+        uploadAllImages()
+            .flatMap { [weak self] urls -> AnyPublisher<Product, Error> in
+                guard let self else {
+                    return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+                }
+                return self.productService.submitPlaceholderProduct(
+                    title: self.title,
+                    description: self.description,
+                    category: self.category,
+                    priceText: self.priceText,
+                    locationName: self.locationName.trimmingCharacters(in: .whitespacesAndNewlines),
+                    latitude: lat,
+                    longitude: lon,
+                    imageUrls: urls
+                )
             }
-        } receiveValue: { _ in }
-        .store(in: &cancellables)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] completion in
+                guard let self else { return }
+                self.isSubmitting = false
+                switch completion {
+                case .finished:
+                    self.submissionIsError = false
+                    self.submissionMessage = "Product submitted successfully."
+                case .failure(let error):
+                    self.submissionIsError = true
+                    self.submissionMessage = error.localizedDescription
+                }
+            } receiveValue: { _ in }
+            .store(in: &cancellables)
     }
 
     func validate() -> Bool {
@@ -120,4 +150,3 @@ final class AddProductViewModel: ObservableObject {
             hasLabel
     }
 }
-

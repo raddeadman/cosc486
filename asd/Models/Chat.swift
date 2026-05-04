@@ -12,9 +12,14 @@ struct Chat: Identifiable, Codable, Hashable {
     let lastMessage: String?
     let createdAt: Date
     let updatedAt: Date
+    /// `open` or `resolved`; missing from API treated as open.
+    let chatStatus: String?
+    let resolvedAt: Date?
+    let resolvedBy: String?
 
     enum CodingKeys: String, CodingKey {
         case id, buyerId, sellerId, productId, participantIds, lastMessage, createdAt, updatedAt
+        case chatStatus, resolvedAt, resolvedBy
     }
 
     init(from decoder: Decoder) throws {
@@ -25,6 +30,8 @@ struct Chat: Identifiable, Codable, Hashable {
         productId = try container.decodeIfPresent(String.self, forKey: .productId) ?? ""
         participantIds = try container.decodeIfPresent([String].self, forKey: .participantIds) ?? []
         lastMessage = try container.decodeIfPresent(String.self, forKey: .lastMessage)
+        chatStatus = try container.decodeIfPresent(String.self, forKey: .chatStatus)
+        resolvedBy = try container.decodeIfPresent(String.self, forKey: .resolvedBy)
 
         if let createdAtDate = try? container.decode(Date.self, forKey: .createdAt) {
             createdAt = createdAtDate
@@ -42,6 +49,15 @@ struct Chat: Identifiable, Codable, Hashable {
             updatedAt = parsedUpdatedAt
         } else {
             updatedAt = createdAt
+        }
+
+        if let d = try? container.decode(Date.self, forKey: .resolvedAt) {
+            resolvedAt = d
+        } else if let s = try? container.decodeIfPresent(String.self, forKey: .resolvedAt),
+                  let parsed = ISO8601DateFormatter().date(from: s) {
+            resolvedAt = parsed
+        } else {
+            resolvedAt = nil
         }
     }
 }

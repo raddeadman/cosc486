@@ -4,6 +4,26 @@ This document lists the backend endpoints needed by the current frontend, the da
 
 Base URL (example): `https://api.example.com/v1`
 
+## Cloud Functions (this repo)
+
+The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile.cloudfunctions.net` (see each `*Service.swift`). Names below are the deployed function paths (not the REST-style paths in older sections).
+
+| Function | Method | Notes |
+|----------|--------|--------|
+| `submitPlaceholderProduct` | POST | Body includes `priceText`, optional `imageUrls` string array |
+| `fetchProducts` | GET | Returns products with optional `reviewAverage`, `reviewCount` |
+| `fetchFavoriteProducts` | GET | Bearer required |
+| `addFavorite` / `removeFavorite` | POST / DELETE | Body `{ "productId" }` |
+| `getOrCreateChat` | POST | Body `buyerId`, `sellerId`, `productId` |
+| `fetchChats` | GET | Chat may include `chatStatus`, `resolvedAt`, `resolvedBy` |
+| `fetchMessages` | GET | Query `chatId` |
+| `sendMessage` | POST | Returns 409 if chat is `resolved` |
+| `resolveChat` | POST | Body `{ "chatId" }`; seller only |
+| `fetchReviews` | GET | Query `sellerId`; any signed-in user |
+| `fetchProductReviews` | GET | Query `productId`; signed-in user |
+| `addReview` | POST | Body `productId`, `sellerId`, `rating` (1–5 int), `comment`; reviewer from token; requires prior chat participation |
+| `uploadImageData` | POST | Multipart field `file` |
+
 ## 1) Auth
 
 ### `POST /auth/register`
@@ -100,6 +120,8 @@ Base URL (example): `https://api.example.com/v1`
     "latitude": 26.2235,
     "longitude": 50.5876,
     "rating": 4.6,
+    "reviewAverage": 4.5,
+    "reviewCount": 12,
     "isAvailable": true,
     "createdAt": "2026-04-30T08:00:00Z"
   }
@@ -107,18 +129,18 @@ Base URL (example): `https://api.example.com/v1`
 ```
 
 ### `POST /products`
-- **Used by function:** `ProductService.submitPlaceholderProduct(title:description:category:priceText:locationName:latitude:longitude:)`
+- **Used by function:** `ProductService.submitPlaceholderProduct(title:description:category:priceText:locationName:latitude:longitude:imageUrls:)`
 - **Request body:**
 ```json
 {
   "title": "Road Bike 700C",
   "description": "Aluminum frame road bike.",
   "category": "Sports",
-  "price": 155,
-  "isAvailable": true,
+  "priceText": "155",
   "locationName": "Hamad Town",
   "latitude": 26.1153,
-  "longitude": 50.5060
+  "longitude": 50.5060,
+  "imageUrls": ["https://cdn.example.com/p1-1.jpg"]
 }
 ```
 - **Response body:** created product object
@@ -197,10 +219,20 @@ Base URL (example): `https://api.example.com/v1`
     "participantIds": ["current-user", "other-user"],
     "productId": "p1",
     "lastMessage": "Is this available?",
-    "updatedAt": "2026-04-30T08:00:00Z"
+    "updatedAt": "2026-04-30T08:00:00Z",
+    "chatStatus": "open",
+    "resolvedAt": null,
+    "resolvedBy": null
   }
 ]
 ```
+
+### `POST /chats/{chatId}/resolve` (implemented as `resolveChat`)
+
+- **Used by function:** `ChatService.resolveChat(chatId:)`
+- **Headers:** `Authorization: Bearer <token>`
+- **Request body:** `{ "chatId": "chat-1" }`
+- **Response body:** updated chat object (`chatStatus` becomes `resolved` for seller after sale)
 
 ### `GET /chats/{chatId}/messages`
 - **Used by function:** `ChatService.fetchMessages(chatId:)`
@@ -222,26 +254,36 @@ Base URL (example): `https://api.example.com/v1`
 
 ### `GET /reviews?sellerId={sellerId}`
 - **Used by function:** `ReviewService.fetchReviews(sellerId:)`
+- **Headers:** `Authorization: Bearer <token>`
 - **Query params:** `sellerId`
-- **Response body:** array of review objects
+- **Response body:** array of review objects (may include `productId`)
+
+### `GET /reviews?productId={productId}` (implemented as `fetchProductReviews`)
+
+- **Used by function:** `ReviewService.fetchProductReviews(productId:)`
+- **Headers:** `Authorization: Bearer <token>`
+- **Query params:** `productId`
+- **Response body:** array of review objects for that listing
 
 ### `POST /reviews`
-- **Used by function:** `ReviewService.addReview(_:)`
+- **Used by function:** `ReviewService.addReview(productId:sellerId:rating:comment:)` (Cloud Function `addReview`)
+- **Headers:** `Authorization: Bearer <token>`
 - **Request body:**
 ```json
 {
+  "productId": "p1",
   "sellerId": "u1",
-  "reviewerId": "u2",
   "rating": 5,
   "comment": "Great seller and fast response."
 }
 ```
+- **Server:** `reviewerId` is taken from the ID token (body `reviewerId` is ignored). Caller must have participated in a chat for `productId` with `sellerId`.
 - **Response body:** created review object
 
 ## 7) Media Uploads
 
-### `POST /uploads/images`
-- **Used by function:** `StorageService.uploadImageData(_:)`
+### `POST /uploads/images` (implemented as `uploadImageData`)
+- **Used by function:** `StorageService.uploadImageData(file:fileName:)`
 - **Content type:** `multipart/form-data`
 - **Fields:**
   - `file`: binary image
@@ -277,5 +319,7 @@ Frontend functions that should include network implementations:
 - `ChatService.fetchMessages`
 - `ChatService.sendMessage`
 - `ReviewService.fetchReviews`
+- `ReviewService.fetchProductReviews`
 - `ReviewService.addReview`
+- `ChatService.resolveChat`
 - `StorageService.uploadImageData`

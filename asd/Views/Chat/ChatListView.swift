@@ -20,7 +20,15 @@ struct ChatListView: View {
             } else {
                 List(viewModel.chatListItems) { item in
                     NavigationLink {
-                        ChatDetailView(chatId: item.chatId, currentUserId: authViewModel.currentUser?.id)
+                        ChatDetailView(
+                            chatId: item.chatId,
+                            product: nil,
+                            productId: item.productId,
+                            sellerId: item.sellerId,
+                            buyerId: item.buyerId,
+                            chatStatus: item.chatStatus,
+                            currentUserId: authViewModel.currentUser?.id
+                        )
                     } label: {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
@@ -47,6 +55,13 @@ struct ChatListView: View {
             }
         }
         .navigationTitle("Chats")
+        .overlay(alignment: .topTrailing) {
+            if viewModel.hasLoadedChatsOnce && viewModel.isLoadingChats && !viewModel.chatListItems.isEmpty {
+                ProgressView()
+                    .scaleEffect(0.85)
+                    .padding(12)
+            }
+        }
         .task {
             viewModel.fetchChats(currentUserId: authViewModel.currentUser?.id)
         }

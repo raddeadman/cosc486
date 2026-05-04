@@ -4,12 +4,13 @@ struct Review: Identifiable, Codable, Hashable {
     let id: String
     let reviewerId: String
     let sellerId: String
+    let productId: String?
     let rating: Int
     let comment: String
     let timestamp: Date
 
     enum CodingKeys: String, CodingKey {
-        case id, reviewerId, sellerId, rating, comment, timestamp, createdAt
+        case id, reviewerId, sellerId, productId, rating, comment, timestamp, createdAt
     }
 
     init(from decoder: Decoder) throws {
@@ -17,6 +18,7 @@ struct Review: Identifiable, Codable, Hashable {
         id = try container.decode(String.self, forKey: .id)
         reviewerId = try container.decodeIfPresent(String.self, forKey: .reviewerId) ?? ""
         sellerId = try container.decodeIfPresent(String.self, forKey: .sellerId) ?? ""
+        productId = try container.decodeIfPresent(String.self, forKey: .productId)
         let ratingString = (try? container.decodeIfPresent(String.self, forKey: .rating)) ?? nil
         rating = (try? container.decode(Int.self, forKey: .rating)) ?? ratingString.flatMap { Int($0) } ?? 0
         comment = try container.decodeIfPresent(String.self, forKey: .comment) ?? ""
@@ -41,6 +43,7 @@ struct Review: Identifiable, Codable, Hashable {
         try container.encode(id, forKey: .id)
         try container.encode(reviewerId, forKey: .reviewerId)
         try container.encode(sellerId, forKey: .sellerId)
+        try container.encodeIfPresent(productId, forKey: .productId)
         try container.encode(rating, forKey: .rating)
         try container.encode(comment, forKey: .comment)
         try container.encode(timestamp, forKey: .timestamp)

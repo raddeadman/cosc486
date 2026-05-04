@@ -194,5 +194,40 @@ final class ChatService {
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
+
+    // MARK: - Resolve Chat (seller only)
+
+    func resolveChat(chatId: String) -> AnyPublisher<Chat, Error> {
+        guard !chatId.isEmpty else {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        let urlString = "\(baseURL)/resolveChat"
+        var request = URLRequest(url: URL(string: urlString)!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let requestBody: [String: Any] = ["chatId": chatId]
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { [weak self] response in
+                guard let self else { throw ChatError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: response, successCodes: [200])
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(Chat.self, from: data)
+            }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
 }
 

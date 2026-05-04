@@ -24,6 +24,31 @@ enum ProductError: Error, LocalizedError {
 final class ProductService {
     private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
 
+    private struct APIErrorResponse: Decodable {
+        let error: String
+    }
+
+    private func validatedData(
+        from output: URLSession.DataTaskPublisher.Output,
+        successCodes: Set<Int>
+    ) throws -> Data {
+        guard let httpResponse = output.response as? HTTPURLResponse else {
+            throw ProductError.serverError("Invalid server response")
+        }
+        if successCodes.contains(httpResponse.statusCode) {
+            return output.data
+        }
+        let message: String
+        if let api = try? JSONDecoder().decode(APIErrorResponse.self, from: output.data) {
+            message = api.error
+        } else if let text = String(data: output.data, encoding: .utf8), !text.isEmpty {
+            message = text
+        } else {
+            message = "Unexpected server error"
+        }
+        throw ProductError.serverError("Request failed (\(httpResponse.statusCode)): \(message)")
+    }
+
     // MARK: - Fetch Products
 
     func fetchProducts(
@@ -68,10 +93,12 @@ final class ProductService {
         request.httpMethod = "GET"
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] output in
+                guard let self else { throw ProductError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode([Product].self, from: response.data)
+                return try decoder.decode([Product].self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -100,7 +127,8 @@ final class ProductService {
         priceText: String,
         locationName: String,
         latitude: Double,
-        longitude: Double
+        longitude: Double,
+        imageUrls: [String] = []
     ) -> AnyPublisher<Product, Error> {
         guard !title.isEmpty, !description.isEmpty, !category.isEmpty, !priceText.isEmpty, !locationName.isEmpty else {
             return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
@@ -127,7 +155,8 @@ final class ProductService {
             "priceText": priceText,
             "locationName": locationName,
             "latitude": latitude,
-            "longitude": longitude
+            "longitude": longitude,
+            "imageUrls": imageUrls
         ]
 
         do {
@@ -137,9 +166,12 @@ final class ProductService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] output in
+                guard let self else { throw ProductError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [201])
                 let decoder = JSONDecoder()
-                return try decoder.decode(Product.self, from: response.data)
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode(Product.self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -172,10 +204,12 @@ final class ProductService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] output in
+                guard let self else { throw ProductError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode(Product.self, from: response.data)
+                return try decoder.decode(Product.self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
