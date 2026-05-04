@@ -254,6 +254,7 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
           return res.status(409).json({ error: "Email already in use" });
     } catch (error) {
       // User doesn't exist, proceed with creation
+      // Only throw if it's not a user-not-found error
       if (!(error instanceof Error) || !error.message.includes("USER_NOT_FOUND")) {
         throw error;
       }
@@ -312,4 +313,3 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
     return res.status(500).json({ error: `Sign up failed: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
-
