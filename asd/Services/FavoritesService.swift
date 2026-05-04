@@ -23,6 +23,38 @@ enum FavoritesError: Error, LocalizedError {
 
 final class FavoritesService {
     private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
+    
+    private struct APIErrorResponse: Decodable {
+        let error: String
+    }
+
+    private func validatedData(
+        from output: URLSession.DataTaskPublisher.Output,
+        successCodes: Set<Int>
+    ) throws -> Data {
+        guard let httpResponse = output.response as? HTTPURLResponse else {
+            throw FavoritesError.serverError("Invalid server response")
+        }
+
+        if successCodes.contains(httpResponse.statusCode) {
+            return output.data
+        }
+
+        let errorMessage = extractErrorMessage(from: output.data)
+        throw FavoritesError.serverError("Request failed (\(httpResponse.statusCode)): \(errorMessage)")
+    }
+
+    private func extractErrorMessage(from data: Data) -> String {
+        if let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+            return apiError.error
+        }
+
+        if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+            return text
+        }
+
+        return "Unexpected server error"
+    }
 
     // MARK: - Fetch Favorite Products
 
@@ -36,10 +68,12 @@ final class FavoritesService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] response in
+                guard let self else { throw FavoritesError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: response, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode([Product].self, from: response.data)
+                return try decoder.decode([Product].self, from: data)
     }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -72,7 +106,11 @@ final class FavoritesService {
 }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { _ in true }
+            .tryMap { [weak self] response in
+                guard let self else { throw FavoritesError.serverError("Service unavailable") }
+                _ = try self.validatedData(from: response, successCodes: [201])
+                return true
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
@@ -104,7 +142,11 @@ final class FavoritesService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { _ in true }
+            .tryMap { [weak self] response in
+                guard let self else { throw FavoritesError.serverError("Service unavailable") }
+                _ = try self.validatedData(from: response, successCodes: [200])
+                return true
+            }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }

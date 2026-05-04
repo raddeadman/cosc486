@@ -1,13 +1,6 @@
 {
   "indexes": [
     {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {"fieldPath": "email", "order": "ASCENDING"}
-      ]
-    },
-    {
       "collectionGroup": "products",
       "queryScope": "COLLECTION",
       "fields": [
@@ -43,7 +36,7 @@
       "collectionGroup": "chats",
       "queryScope": "COLLECTION",
       "fields": [
-        {"fieldPath": "participantIds", "order": "ASCENDING"},
+        {"fieldPath": "participantIds", "arrayConfig": "CONTAINS"},
         {"fieldPath": "updatedAt", "order": "DESCENDING"}
       ]
     },

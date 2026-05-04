@@ -23,6 +23,38 @@ enum ChatError: Error, LocalizedError {
 
 final class ChatService {
     private let baseURL = "https://us-central1-openmarketmobile.cloudfunctions.net"
+    
+    private struct APIErrorResponse: Decodable {
+        let error: String
+    }
+
+    private func validatedData(
+        from output: URLSession.DataTaskPublisher.Output,
+        successCodes: Set<Int>
+    ) throws -> Data {
+        guard let httpResponse = output.response as? HTTPURLResponse else {
+            throw ChatError.serverError("Invalid server response")
+        }
+
+        if successCodes.contains(httpResponse.statusCode) {
+            return output.data
+        }
+
+        let errorMessage = extractErrorMessage(from: output.data)
+        throw ChatError.serverError("Request failed (\(httpResponse.statusCode)): \(errorMessage)")
+    }
+
+    private func extractErrorMessage(from data: Data) -> String {
+        if let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data) {
+            return apiError.error
+        }
+
+        if let text = String(data: data, encoding: .utf8), !text.isEmpty {
+            return text
+        }
+
+        return "Unexpected server error"
+    }
 
     // MARK: - Get or Create Chat
 
@@ -57,10 +89,12 @@ final class ChatService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] response in
+                guard let self else { throw ChatError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: response, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode(Chat.self, from: response.data)
+                return try decoder.decode(Chat.self, from: data)
     }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -78,10 +112,12 @@ final class ChatService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] response in
+                guard let self else { throw ChatError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: response, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode([Chat].self, from: response.data)
+                return try decoder.decode([Chat].self, from: data)
     }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -109,10 +145,12 @@ final class ChatService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] response in
+                guard let self else { throw ChatError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: response, successCodes: [200])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode([Message].self, from: response.data)
+                return try decoder.decode([Message].self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
@@ -146,10 +184,12 @@ final class ChatService {
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
-            .tryMap { response in
+            .tryMap { [weak self] response in
+                guard let self else { throw ChatError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: response, successCodes: [201])
                 let decoder = JSONDecoder()
                 decoder.dateDecodingStrategy = .iso8601
-                return try decoder.decode(Message.self, from: response.data)
+                return try decoder.decode(Message.self, from: data)
             }
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
