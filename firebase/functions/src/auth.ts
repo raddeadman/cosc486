@@ -2,12 +2,61 @@
 import * as admin from "firebase-admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
+import * as https from "https";
 
-// Initialize app
-admin.initializeApp();
-
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || "AIzaSyCEPDGVBsVyub1BOzUKy5af7rbpCHXidWg";
+const FIREBASE_AUTH_ENDPOINT = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`;
 
 const db = admin.firestore();
+
+interface FirebaseAuthResponse {
+  idToken: string;
+  refreshToken: string;
+  expiresIn: string;
+  localId: string;
+  displayName?: string;
+  email?: string;
+}
+
+async function signInWithEmailPassword(email: string, password: string): Promise<FirebaseAuthResponse> {
+  const body = JSON.stringify({
+    email,
+    password,
+    returnSecureToken: true,
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(FIREBASE_AUTH_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(body),
+      },
+    }, (res) => {
+      let data = "";
+      res.on("data", (chunk) => {
+        data += chunk;
+      });
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data) as any;
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            resolve(json as FirebaseAuthResponse);
+          } else {
+            const message = json?.error?.message || `Authentication failed with status ${res.statusCode}`;
+            reject(new Error(message));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 /**
  * AuthService.login - HTTP trigger for login endpoint
@@ -25,22 +74,10 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
-    // Sign in the user with Firebase Auth - this verifies both email and password
-    let userRecord;
+    // Sign in the user with Firebase Auth using the email/password REST endpoint
     try {
-      userRecord = await admin.auth().getUserByEmail(email);
-    } catch (error) {
-      logger.error("User not found", error);
-      return res.status(401).json({ error: "Invalid email or password" });
-    }
-
-    // Verify password by attempting to create a custom token
-    try {
-      const customToken = await admin.auth().createCustomToken(userRecord.uid);
-      // If we get here, the credentials are valid
-
-      // Get the user's UID
-      const uid = userRecord.uid;
+      const authResult = await signInWithEmailPassword(email, password);
+      const uid = authResult.localId;
 
       // Fetch the user profile from Firestore
       const userDoc = await db.collection("users").doc(uid).get();
@@ -52,9 +89,8 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
       // Get the user data with proper types
       const userData = userDoc.data() as any;
 
-      // Return the response in the expected format (using customToken instead of ID token)
       res.status(200).json({
-        token: customToken,
+        token: authResult.idToken,
         user: {
           id: uid,
           name: userData.name || "",
@@ -65,8 +101,13 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
       });
     } catch (authError) {
       logger.error("Authentication error", authError);
-      if (authError instanceof Error && authError.message.includes("USER_DISABLED")) {
-        return res.status(401).json({ error: "User account disabled" });
+      if (authError instanceof Error) {
+        if (authError.message.includes("USER_DISABLED")) {
+          return res.status(401).json({ error: "User account disabled" });
+        }
+        if (authError.message.includes("INVALID_PASSWORD") || authError.message.includes("EMAIL_NOT_FOUND") || authError.message.includes("USER_DISABLED")) {
+          return res.status(401).json({ error: "Invalid email or password" });
+        }
       }
       return res.status(401).json({ error: "Invalid email or password" });
     }
@@ -291,12 +332,12 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    // Create a custom token for the new user
-    const customToken = await admin.auth().createCustomToken(uid);
+    // Sign in the newly created user to generate an ID token
+    const authResult = await signInWithEmailPassword(email, password);
 
     // Return the response in the expected format
     res.status(201).json({
-      token: customToken,
+      token: authResult.idToken,
       user: {
         id: uid,
         name,

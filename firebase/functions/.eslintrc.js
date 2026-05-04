@@ -35,5 +35,6 @@ module.exports = {
     'max-len': ['error', { 'code': 1200 }], // Increase max line length
     'object-curly-spacing': 'off', // Disable spacing rules for object literals
     'comma-dangle': 'off', // Allow trailing commas
+    'require-jsdoc': 'off', // Disable JSDoc requirements
   },
 };

@@ -1,4 +1,4 @@
-import * as admin from "firebase-admin";
+import admin from "./admin";
 import * as functions from "firebase-functions/v1";
 import * as logger from "firebase-functions/logger";
 
@@ -9,7 +9,6 @@ import * as chat from "./chat";
 import * as reviews from "./reviews";
 import * as storage from "./storage";
 
-admin.initializeApp();
 const db = admin.firestore();
 
 // import {
