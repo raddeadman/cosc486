@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import SwiftUI
 
 final class FavoritesViewModel: ObservableObject {
     @Published var favoriteProducts: [Product] = []

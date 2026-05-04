@@ -106,9 +106,9 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req: an
     // Get product data from request body
     const { title, description, category, priceText, locationName, latitude, longitude, imageUrls } = req.body;
 
-    const imageList: string[] = Array.isArray(imageUrls)
-      ? (imageUrls as unknown[]).filter((u) => typeof u === "string") as string[]
-      : [];
+    const imageList: string[] = Array.isArray(imageUrls) ?
+      (imageUrls as unknown[]).filter((u) => typeof u === "string") as string[] :
+      [];
 
     if (!title || !description || !category || !priceText || !locationName || latitude === undefined || longitude === undefined) {
       return res.status(400).json({ error: "All required fields are missing" });
