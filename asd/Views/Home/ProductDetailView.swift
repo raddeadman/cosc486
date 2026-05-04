@@ -1,5 +1,6 @@
 import SwiftUI
 import MapKit
+import Combine
 
 struct ProductDetailView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
@@ -54,8 +55,8 @@ struct ProductDetailView: View {
                         if case let .failure(error) = completion {
                             print("Failed to get/create chat: \(error)")
                         }
-                    } receiveValue: { chatId in
-                        targetChatId = chatId
+                    } receiveValue: { chat in
+                        targetChatId = chat.id
                     }
                     openChat = true
                 }
