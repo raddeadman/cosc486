@@ -28,6 +28,14 @@ struct AddProductView: View {
             PrimaryButton(title: "Submit product", isLoading: viewModel.isSubmitting) {
                 viewModel.submitProduct()
             }
+
+            if let message = viewModel.submissionMessage {
+                Section {
+                    Text(message)
+                        .foregroundColor(viewModel.submissionIsError ? .red : .green)
+                        .font(.footnote)
+                }
+            }
         }
         .navigationTitle("Add Product")
     }

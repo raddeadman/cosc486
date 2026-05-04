@@ -96,6 +96,10 @@ final class ProductService {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
         // Convert priceText to Double
         guard let price = Double(priceText) else {
             return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()

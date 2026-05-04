@@ -18,6 +18,8 @@ final class AddProductViewModel: ObservableObject {
     @Published var isSubmitting = false
     @Published var isGeocoding = false
     @Published var locationLookupMessage: String?
+    @Published var submissionMessage: String?
+    @Published var submissionIsError = false
 
     private let productService = ProductService()
     private let locationService = LocationService()
@@ -68,10 +70,21 @@ final class AddProductViewModel: ObservableObject {
     }
 
     func submitProduct() {
-        guard validate() else { return }
-        guard let lat = latitude, let lon = longitude else { return }
+        guard validate() else {
+            submissionIsError = true
+            submissionMessage = "Please fill all fields and choose a location."
+            return
+        }
+        guard let lat = latitude, let lon = longitude else {
+            submissionIsError = true
+            submissionMessage = "Please select a valid location."
+            return
+        }
+
+        submissionMessage = nil
+        submissionIsError = false
         isSubmitting = true
-        defer { isSubmitting = false }
+
         productService.submitPlaceholderProduct(
             title: title,
             description: description,
@@ -81,6 +94,19 @@ final class AddProductViewModel: ObservableObject {
             latitude: lat,
             longitude: lon
         )
+        .sink { [weak self] completion in
+            guard let self = self else { return }
+            self.isSubmitting = false
+            switch completion {
+            case .finished:
+                self.submissionIsError = false
+                self.submissionMessage = "Product submitted successfully."
+            case .failure(let error):
+                self.submissionIsError = true
+                self.submissionMessage = error.localizedDescription
+            }
+        } receiveValue: { _ in }
+        .store(in: &cancellables)
     }
 
     func validate() -> Bool {
