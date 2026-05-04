@@ -2,7 +2,7 @@ import Foundation
 import Combine
 
 final class ProductViewModel: ObservableObject {
-    @Published var products: [Product] = MockData.products
+    @Published var products: [Product] = []
     @Published var searchText = ""
     @Published var selectedCategory = "All"
     @Published var selectedSort = "Date"

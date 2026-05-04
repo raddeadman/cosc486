@@ -7,6 +7,7 @@ final class LocationViewModel: NSObject, ObservableObject, CLLocationManagerDele
     @Published var userLocation: CLLocation?
 
     private let locationManager = CLLocationManager()
+    private let productService = ProductService()
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
@@ -20,7 +21,20 @@ final class LocationViewModel: NSObject, ObservableObject, CLLocationManagerDele
     }
 
     func loadNearbyProducts() {
-        nearbyProducts = MockData.products
+        guard let location = userLocation else {
+            nearbyProducts = []
+            return
+        }
+
+        productService.fetchProducts(lat: location.coordinate.latitude,
+                                     lng: location.coordinate.longitude,
+                                     radiusKm: 50)
+            .sink { completion in
+                // Handle completion if necessary
+            } receiveValue: { products in
+                self.nearbyProducts = products
+            }
+            .store(in: &cancellables)
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
