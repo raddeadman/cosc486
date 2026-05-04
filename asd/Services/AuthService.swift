@@ -50,6 +50,7 @@ final class AuthService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 let loginResponse = try decoder.decode(LoginResponse.self, from: response.data)
                 TokenManager.save(token: loginResponse.token)  // Save token here
                 return loginResponse.user
@@ -85,6 +86,7 @@ final class AuthService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 let loginResponse = try decoder.decode(LoginResponse.self, from: response.data)
                 TokenManager.save(token: loginResponse.token)  // Save token here
                 return loginResponse.user
@@ -127,6 +129,7 @@ final class AuthService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode(User.self, from: response.data)
     }
             .receive(on: DispatchQueue.main)
@@ -163,6 +166,7 @@ final class AuthService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode(User.self, from: response.data)
             }
             .receive(on: DispatchQueue.main)

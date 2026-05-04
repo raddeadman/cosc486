@@ -88,6 +88,11 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
 
       // Get the user data with proper types
       const userData = userDoc.data() as any;
+      const createdAt = userData.createdAt && typeof userData.createdAt.toDate === "function"
+        ? userData.createdAt.toDate().toISOString()
+        : typeof userData.createdAt === "string"
+          ? userData.createdAt
+          : new Date().toISOString();
 
       res.status(200).json({
         token: authResult.idToken,
@@ -97,6 +102,7 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
           email: userData.email || "",
           profileImageUrl: userData.profileImageUrl || "",
           ratingAverage: userData.ratingAverage || 0,
+          createdAt,
         },
       });
     } catch (authError) {
@@ -303,7 +309,8 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
       userExists = true;
     } catch (error) {
       // User doesn't exist, this is expected
-      if (!(error instanceof Error) || !error.message.includes("USER_NOT_FOUND")) {
+      const authError = error as { code?: string; message?: string };
+      if (authError.code !== "auth/user-not-found" && authError.code !== "USER_NOT_FOUND") {
         throw error;
       }
     }
@@ -335,6 +342,8 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
     // Sign in the newly created user to generate an ID token
     const authResult = await signInWithEmailPassword(email, password);
 
+    const createdAt = new Date().toISOString();
+
     // Return the response in the expected format
     res.status(201).json({
       token: authResult.idToken,
@@ -344,6 +353,7 @@ export const signUp = functions.https.onRequest(async (req: any, res: any) => {
         email,
         profileImageUrl: "",
         ratingAverage: 0.0,
+        createdAt,
       },
     });
     return; // Explicit return
