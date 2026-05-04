@@ -8,6 +8,7 @@ struct ProductDetailView: View {
     @State private var openChat = false
     @State private var targetChatId = ""
     private let chatService = ChatService()
+    @State private var cancellables: [AnyCancellable] = []
 
     private var currentUserId: String {
         authViewModel.currentUser?.id ?? "current-user"
@@ -39,14 +40,7 @@ struct ProductDetailView: View {
                     .frame(height: 220)
 
                 PrimaryButton(title: "Contact Seller") {
-                    // API placeholder:
-                    // let chatId = try await chatService.getOrCreateChat(
-                    //   buyerId: currentUserId,
-                    //   sellerId: product.sellerId,
-                    //   productId: product.id
-                    // )
-                    // targetChatId = chatId
-                    chatService.getOrCreateChat(
+                    let cancellable = chatService.getOrCreateChat(
                         buyerId: currentUserId,
                         sellerId: product.sellerId,
                         productId: product.id
@@ -57,10 +51,22 @@ struct ProductDetailView: View {
                         }
                     } receiveValue: { chat in
                         targetChatId = chat.id
+                        openChat = true
                     }
-                    openChat = true
+                    cancellables.append(cancellable)
                 }
-                PrimaryButton(title: "Add to Favorites") {}
+                PrimaryButton(title: "Add to Favorites") {
+                    let favService = FavoritesService()
+                    let cancellable = favService.addFavorite(productId: product.id, userId: currentUserId)
+                        .sink { completion in
+                            if case let .failure(error) = completion {
+                                print("Failed to add favorite: \(error)")
+                            }
+                        } receiveValue: { success in
+                            print("Added favorite: \(success)")
+                        }
+                    cancellables.append(cancellable)
+                }
             }
             .padding()
         }

@@ -91,9 +91,20 @@ final class FavoritesService {
         let urlString = "\(baseURL)/removeFavorite"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         if let token = TokenManager.get() {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        let requestBody: [String: Any] = [
+            "productId": productId
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
         }
 
         return URLSession.shared.dataTaskPublisher(for: request)
@@ -101,4 +112,4 @@ final class FavoritesService {
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
-}
+}}
