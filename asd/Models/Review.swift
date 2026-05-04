@@ -17,7 +17,8 @@ struct Review: Identifiable, Codable, Hashable {
         id = try container.decode(String.self, forKey: .id)
         reviewerId = try container.decodeIfPresent(String.self, forKey: .reviewerId) ?? ""
         sellerId = try container.decodeIfPresent(String.self, forKey: .sellerId) ?? ""
-        rating = (try? container.decode(Int.self, forKey: .rating)) ?? Int(try? container.decodeIfPresent(String.self, forKey: .rating) ?? "") ?? 0
+        let ratingString = (try? container.decodeIfPresent(String.self, forKey: .rating)) ?? nil
+        rating = (try? container.decode(Int.self, forKey: .rating)) ?? ratingString.flatMap { Int($0) } ?? 0
         comment = try container.decodeIfPresent(String.self, forKey: .comment) ?? ""
 
         if let date = try? container.decode(Date.self, forKey: .timestamp) {
