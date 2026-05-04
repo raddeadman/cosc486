@@ -45,11 +45,18 @@ struct ProductDetailView: View {
                     //   productId: product.id
                     // )
                     // targetChatId = chatId
-                    targetChatId = chatService.getOrCreateChat(
+                    chatService.getOrCreateChat(
                         buyerId: currentUserId,
                         sellerId: product.sellerId,
                         productId: product.id
                     )
+                    .sink { completion in
+                        if case let .failure(error) = completion {
+                            print("Failed to get/create chat: \(error)")
+                        }
+                    } receiveValue: { chatId in
+                        targetChatId = chatId
+                    }
                     openChat = true
                 }
                 PrimaryButton(title: "Add to Favorites") {}
