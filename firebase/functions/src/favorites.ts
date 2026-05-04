@@ -45,6 +45,7 @@ export const fetchFavoriteProducts = functions.https.onRequest(async (req: any, 
         if (productDoc.exists) {
           const productInfo = productDoc.data() as any;
           favorites.push({
+            id: productDoc.id,
             ...productInfo,
             favoriteId: doc.id,
             createdAt: productInfo.createdAt?.toDate().toISOString(),

@@ -161,7 +161,11 @@ export const fetchMessages = functions.https.onRequest(async (req: any, res: any
       return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    const { chatId } = req.params;
+    const chatIdValue = req.query.chatId;
+    const chatId = Array.isArray(chatIdValue) ? chatIdValue[0] : chatIdValue;
+    if (!chatId || typeof chatId !== "string") {
+      return res.status(400).json({ error: "Chat ID is required" });
+    }
 
     // Verify user has access to this chat
     const chatDoc = await db.collection('chats').doc(chatId).get();

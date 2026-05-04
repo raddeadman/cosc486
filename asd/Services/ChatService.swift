@@ -59,6 +59,7 @@ final class ChatService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode(Chat.self, from: response.data)
     }
             .receive(on: DispatchQueue.main)
@@ -79,6 +80,7 @@ final class ChatService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode([Chat].self, from: response.data)
     }
             .receive(on: DispatchQueue.main)
@@ -92,8 +94,14 @@ final class ChatService {
             return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
         }
 
-        let urlString = "\(baseURL)/fetchMessages"
-        var request = URLRequest(url: URL(string: urlString)!)
+        var components = URLComponents(string: "\(baseURL)/fetchMessages")
+        components?.queryItems = [URLQueryItem(name: "chatId", value: chatId)]
+
+        guard let url = components?.url else {
+            return Fail(error: ChatError.invalidParameters).eraseToAnyPublisher()
+        }
+
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
 
         if let token = TokenManager.get() {
@@ -103,6 +111,7 @@ final class ChatService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode([Message].self, from: response.data)
             }
             .receive(on: DispatchQueue.main)
@@ -138,6 +147,7 @@ final class ChatService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode(Message.self, from: response.data)
             }
             .receive(on: DispatchQueue.main)

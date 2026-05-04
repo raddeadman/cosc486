@@ -7,4 +7,31 @@ struct Review: Identifiable, Codable, Hashable {
     let rating: Int
     let comment: String
     let timestamp: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, reviewerId, sellerId, rating, comment, timestamp, createdAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        reviewerId = try container.decodeIfPresent(String.self, forKey: .reviewerId) ?? ""
+        sellerId = try container.decodeIfPresent(String.self, forKey: .sellerId) ?? ""
+        rating = (try? container.decode(Int.self, forKey: .rating)) ?? Int(try container.decodeIfPresent(String.self, forKey: .rating) ?? "") ?? 0
+        comment = try container.decodeIfPresent(String.self, forKey: .comment) ?? ""
+
+        if let date = try? container.decode(Date.self, forKey: .timestamp) {
+            timestamp = date
+        } else if let stringValue = try? container.decode(String.self, forKey: .timestamp),
+                  let parsedDate = ISO8601DateFormatter().date(from: stringValue) {
+            timestamp = parsedDate
+        } else if let date = try? container.decode(Date.self, forKey: .createdAt) {
+            timestamp = date
+        } else if let stringValue = try? container.decode(String.self, forKey: .createdAt),
+                  let parsedDate = ISO8601DateFormatter().date(from: stringValue) {
+            timestamp = parsedDate
+        } else {
+            timestamp = Date()
+        }
+    }
 }

@@ -38,6 +38,7 @@ final class ReviewService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode([Review].self, from: response.data)
             }
             .receive(on: DispatchQueue.main)
@@ -81,6 +82,7 @@ final class ReviewService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode(Review.self, from: response.data)
             }
             .receive(on: DispatchQueue.main)

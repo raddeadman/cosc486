@@ -70,6 +70,7 @@ final class ProductService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode([Product].self, from: response.data)
             }
             .receive(on: DispatchQueue.main)
@@ -160,6 +161,7 @@ final class ProductService {
         return URLSession.shared.dataTaskPublisher(for: request)
             .tryMap { response in
                 let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
                 return try decoder.decode(Product.self, from: response.data)
             }
             .receive(on: DispatchQueue.main)
