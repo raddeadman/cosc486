@@ -44,7 +44,9 @@ struct ProductCardView: View {
                                 .foregroundStyle(.secondary)
                         }
                     } else {
-                        RatingStarsView(rating: product.rating, isSelectable: false, selectedRating: .constant(0))
+                        Text("No reviews yet")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }

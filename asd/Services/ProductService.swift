@@ -179,13 +179,40 @@ final class ProductService {
 
     // MARK: - Update Product Availability
 
+    func fetchMyProducts() -> AnyPublisher<[Product], Error> {
+        let urlString = "\(baseURL)/fetchMyProducts"
+        guard let url = URL(string: urlString) else {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        if let token = TokenManager.get() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+
+        return URLSession.shared.dataTaskPublisher(for: request)
+            .tryMap { [weak self] output in
+                guard let self else { throw ProductError.serverError("Service unavailable") }
+                let data = try self.validatedData(from: output, successCodes: [200])
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode([Product].self, from: data)
+            }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }
+
     func updateProductAvailability(
         productId: String,
         userId: String,
         isAvailable: Bool
     ) -> AnyPublisher<Product, Error> {
-        let urlString = "\(baseURL)/updateProductAvailability"
-        var request = URLRequest(url: URL(string: urlString)!)
+        var components = URLComponents(string: "\(baseURL)/updateProductAvailability")!
+        components.queryItems = [URLQueryItem(name: "productId", value: productId)]
+        guard let url = components.url else {
+            return Fail(error: ProductError.invalidParameters).eraseToAnyPublisher()
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "PATCH"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 

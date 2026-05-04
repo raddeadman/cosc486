@@ -180,11 +180,11 @@ export const fetchUserProfile = functions.https.onRequest(async (req: any, res: 
       return res.status(405).send("Method Not Allowed");
     }
 
-    // Get the UID from path parameters
-    const uid = req.params.uid;
+    const uidRaw = req.query.uid ?? req.params.uid;
+    const uid = Array.isArray(uidRaw) ? uidRaw[0] : uidRaw;
 
-    if (!uid) {
-      return res.status(400).json({ error: "User ID is required" });
+    if (!uid || typeof uid !== "string") {
+      return res.status(400).json({ error: "User ID is required (uid query parameter)" });
     }
 
     // Fetch the user profile from Firestore
@@ -221,38 +221,43 @@ export const updateUserProfile = functions.https.onRequest(async (req: any, res:
       return res.status(405).send("Method Not Allowed");
     }
 
-    // Get the UID from path parameters and request body
-    const uid = req.params.uid;
-    const { name, email } = req.body;
+    const uidRaw = req.query.uid ?? req.params.uid;
+    const uid = Array.isArray(uidRaw) ? uidRaw[0] : uidRaw;
+    const { name, profileImageUrl } = req.body;
 
-    if (!uid) {
-      return res.status(400).json({ error: "User ID is required" });
+    if (!uid || typeof uid !== "string") {
+      return res.status(400).json({ error: "User ID is required (uid query parameter)" });
     }
 
-    if (!name && !email) {
-      return res.status(400).json({ error: "At least one of name or email must be provided" });
+    if (name === undefined && profileImageUrl === undefined) {
+      return res.status(400).json({ error: "At least one of name or profileImageUrl must be provided" });
     }
 
-    // Get the authorization header for validation
     const authHeader = req.headers.authorization;
-
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const idToken = authHeader.split("Bearer ")[1];
-      try {
-        await admin.auth().verifyIdToken(idToken);
-      } catch (error) {
-        logger.error("Invalid token for profile update", error);
-        return res.status(401).json({ error: "Invalid or expired token" });
-      }
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
     }
 
-    // Update the user in Firestore
+    let tokenUid: string;
+    try {
+      const decoded = await admin.auth().verifyIdToken(authHeader.split("Bearer ")[1]);
+      tokenUid = decoded.uid;
+    } catch (error) {
+      logger.error("Invalid token for profile update", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    if (tokenUid !== uid) {
+      return res.status(403).json({ error: "You can only update your own profile" });
+    }
+
+    // Update the user in Firestore (email is not changed via this API)
     const updates: any = {};
     if (name !== undefined) {
       updates.name = name;
     }
-    if (email !== undefined) {
-      updates.email = email;
+    if (profileImageUrl !== undefined && typeof profileImageUrl === "string") {
+      updates.profileImageUrl = profileImageUrl;
     }
     updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
 
@@ -270,13 +275,13 @@ export const updateUserProfile = functions.https.onRequest(async (req: any, res:
       return res.status(404).json({ error: "User not found" });
     }
     const userData = updatedUserDoc.data() as any;
-    const profileImageUrl = userData.profileImageUrl || "";
+    const savedProfileImageUrl = userData.profileImageUrl || "";
 
     res.status(200).json({
       id: uid,
       name: userData.name || "",
       email: userData.email || "",
-      profileImageUrl,
+      profileImageUrl: savedProfileImageUrl,
       ratingAverage: userData.ratingAverage || 0,
       createdAt: userData.createdAt?.toDate().toISOString() || "",
     });

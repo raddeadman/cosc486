@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ChatDetailView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
+
     let chatId: String
     let product: Product?
     let productId: String?
@@ -47,18 +49,45 @@ struct ChatDetailView: View {
         return currentUserId == sellerId
     }
 
+    private var isCurrentUserBuyer: Bool {
+        guard let currentUserId, let buyerId, !buyerId.isEmpty else { return false }
+        return currentUserId == buyerId
+    }
+
+    private var resolvedProductId: String? {
+        displayProduct?.id ?? (productId.flatMap { $0.isEmpty ? nil : $0 })
+    }
+
     var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 0) {
                 productHeader
 
                 if isResolved {
-                    Label("This chat is resolved. Messaging is disabled.", systemImage: "checkmark.seal.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(Color(.secondarySystemBackground))
+                    VStack(spacing: 10) {
+                        Label("This chat is resolved. Messaging is disabled.", systemImage: "checkmark.seal.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .background(Color(.secondarySystemBackground))
+
+                        if isCurrentUserBuyer,
+                           let p = displayProduct,
+                           !viewModel.buyerHasReviewedThisProduct {
+                            NavigationLink {
+                                ProductReviewsScreen(product: p)
+                                    .environmentObject(authViewModel)
+                            } label: {
+                                Label("Review product", systemImage: "star.bubble")
+                                    .font(.subheadline.weight(.semibold))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .padding(.horizontal)
+                        }
+                    }
                 }
 
                 Group {
@@ -72,13 +101,21 @@ struct ChatDetailView: View {
                             description: Text(error)
                         )
                     } else {
-                        ScrollViewReader { _ in
+                        ScrollViewReader { proxy in
                             List(viewModel.messages) { message in
                                 messageRow(message)
                                     .listRowSeparator(.hidden)
                                     .listRowBackground(Color.clear)
+                                    .id(message.id)
                             }
                             .listStyle(.plain)
+                            .onChange(of: viewModel.messages.count) { _, _ in
+                                if let last = viewModel.messages.last {
+                                    withAnimation {
+                                        proxy.scrollTo(last.id, anchor: .bottom)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -101,7 +138,22 @@ struct ChatDetailView: View {
                 viewModel.loadDetailProduct(productId: pid)
             }
             viewModel.fetchMessages(chatId: chatId)
+            refreshReviewEligibility()
         }
+        .onChange(of: viewModel.detailChatStatus) { _, _ in
+            refreshReviewEligibility()
+        }
+        .onChange(of: viewModel.detailProduct?.id) { _, _ in
+            refreshReviewEligibility()
+        }
+    }
+
+    private func refreshReviewEligibility() {
+        viewModel.refreshBuyerReviewState(
+            productId: resolvedProductId,
+            buyerId: buyerId,
+            currentUserId: currentUserId
+        )
     }
 
     @ViewBuilder
@@ -170,7 +222,7 @@ struct ChatDetailView: View {
     @ViewBuilder
     private func messageRow(_ message: Message) -> some View {
         let isSender = message.senderId == currentUserId
-        HStack(alignment: .bottom) {
+        HStack(alignment: .bottom, spacing: 8) {
             if isSender { Spacer(minLength: 48) }
             Text(message.text)
                 .padding(.horizontal, 12)
@@ -180,6 +232,10 @@ struct ChatDetailView: View {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(isSender ? Color.accentColor : Color(.secondarySystemFill))
                 )
+            if message.isPending {
+                ProgressView()
+                    .scaleEffect(0.85)
+            }
             if !isSender { Spacer(minLength: 48) }
         }
     }
@@ -196,7 +252,7 @@ struct ChatDetailView: View {
                 TextField("Message", text: $messageText)
                     .textFieldStyle(.roundedBorder)
                 Button("Send") {
-                    viewModel.sendMessage(text: messageText, chatId: chatId)
+                    viewModel.sendMessage(text: messageText, chatId: chatId, currentUserId: currentUserId)
                     messageText = ""
                 }
                 .disabled(messageText.isEmpty || viewModel.isSendingMessage || isResolved)

@@ -15,8 +15,11 @@ final class ChatViewModel: ObservableObject {
     @Published var messageErrorMessage: String?
     @Published var detailProduct: Product?
     @Published var detailChatStatus: String?
+    /// True if the current user (as buyer) already has a product review for this listing.
+    @Published var buyerHasReviewedThisProduct = false
 
     private let chatService = ChatService()
+    private let reviewService = ReviewService()
     private let productService = ProductService()
     private let authService = AuthService()
     private var cancellables = Set<AnyCancellable>()
@@ -184,6 +187,24 @@ final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
+    func refreshBuyerReviewState(productId: String?, buyerId: String?, currentUserId: String?) {
+        guard let productId, !productId.isEmpty,
+              let buyerId, !buyerId.isEmpty,
+              let currentUserId, buyerId == currentUserId else {
+            buyerHasReviewedThisProduct = true
+            return
+        }
+        reviewService.fetchProductReviews(productId: productId)
+            .sink { [weak self] completion in
+                if case .failure = completion {
+                    self?.buyerHasReviewedThisProduct = false
+                }
+            } receiveValue: { [weak self] reviews in
+                self?.buyerHasReviewedThisProduct = reviews.contains { $0.reviewerId == currentUserId }
+            }
+            .store(in: &cancellables)
+    }
+
     func resolveChat(chatId: String) {
         isResolvingChat = true
         messageErrorMessage = nil
@@ -217,18 +238,35 @@ final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    func sendMessage(text: String, chatId: String) {
+    func sendMessage(text: String, chatId: String, currentUserId: String?) {
         guard !text.isEmpty else { return }
+        guard let currentUserId, !currentUserId.isEmpty else { return }
+
+        let localId = "local-\(UUID().uuidString)"
+        let pending = Message(
+            id: localId,
+            senderId: currentUserId,
+            text: text,
+            createdAt: Date(),
+            receiverId: nil,
+            chatId: chatId,
+            isPending: true
+        )
+        messages.append(pending)
         isSendingMessage = true
         messageErrorMessage = nil
+
         chatService.sendMessage(text: text, chatId: chatId)
             .sink { [weak self] completion in
                 guard let self else { return }
                 self.isSendingMessage = false
                 if case .failure(let error) = completion {
+                    self.messages.removeAll { $0.id == localId }
                     self.messageErrorMessage = error.localizedDescription
                 }
-            } receiveValue: { _ in
+            } receiveValue: { [weak self] _ in
+                guard let self else { return }
+                self.messages.removeAll { $0.id == localId }
                 self.fetchMessages(chatId: chatId, isRefresh: true)
             }
             .store(in: &cancellables)

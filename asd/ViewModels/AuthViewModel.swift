@@ -32,12 +32,27 @@ final class AuthViewModel: ObservableObject {
                     self?.errorMessage = error.localizedDescription
                 }
             } receiveValue: { [weak self] user in
-                    self?.currentUser = user
-                    self?.isLoggedIn = true
-                    self?.userDisplayName = user.name.isEmpty ? "Guest" : user.name
+                guard let self else { return }
+                #if canImport(FirebaseAuth)
+                Auth.auth().signIn(withEmail: email, password: password) { _, error in
+                    DispatchQueue.main.async {
+                        if let error {
+                            self.errorMessage = error.localizedDescription
+                        }
+                        // Keep HTTP session even if client Firebase sign-in fails (e.g. Storage may be unavailable).
+                        self.currentUser = user
+                        self.isLoggedIn = true
+                        self.userDisplayName = user.name.isEmpty ? "Guest" : user.name
+                    }
                 }
-            .store(in: &cancellables)
+                #else
+                self.currentUser = user
+                self.isLoggedIn = true
+                self.userDisplayName = user.name.isEmpty ? "Guest" : user.name
+                #endif
             }
+            .store(in: &cancellables)
+    }
 
     func signUp(name: String, email: String, password: String) {
         isLoading = true
@@ -47,14 +62,29 @@ final class AuthViewModel: ObservableObject {
                 self?.isLoading = false
                 if case .failure(let error) = completion {
                     self?.errorMessage = error.localizedDescription
-        }
-            } receiveValue: { [weak self] user in
-                self?.currentUser = user
-                    self?.isLoggedIn = true
-                self?.userDisplayName = user.name.isEmpty ? "Guest" : user.name
                 }
-            .store(in: &cancellables)
+            } receiveValue: { [weak self] user in
+                guard let self else { return }
+                #if canImport(FirebaseAuth)
+                Auth.auth().signIn(withEmail: email, password: password) { _, error in
+                    DispatchQueue.main.async {
+                        if let error {
+                            self.errorMessage = error.localizedDescription
+                        }
+                        // Keep HTTP session even if client Firebase sign-in fails (e.g. Storage may be unavailable).
+                        self.currentUser = user
+                        self.isLoggedIn = true
+                        self.userDisplayName = user.name.isEmpty ? "Guest" : user.name
+                    }
+                }
+                #else
+                self.currentUser = user
+                self.isLoggedIn = true
+                self.userDisplayName = user.name.isEmpty ? "Guest" : user.name
+                #endif
             }
+            .store(in: &cancellables)
+    }
 
     func logout() {
         authService.logout()
@@ -62,8 +92,11 @@ final class AuthViewModel: ObservableObject {
                 // Handle completion if needed
             } receiveValue: { _ in
                 // Logout successful
-        }
+            }
             .store(in: &cancellables)
+        #if canImport(FirebaseAuth)
+        try? Auth.auth().signOut()
+        #endif
         currentUser = nil
         isLoggedIn = false
         userDisplayName = nil
@@ -145,6 +178,29 @@ final class AuthViewModel: ObservableObject {
                 break // We only need the first value
             }
         }
+    }
+
+    /// Updates display name and/or profile image URL. Email is never changed here.
+    func updateProfile(name: String?, profileImageUrl: String?, completion: ((Error?) -> Void)? = nil) {
+        guard let uid = currentUser?.id else {
+            completion?(NSError(domain: "Auth", code: 0, userInfo: [NSLocalizedDescriptionKey: "Not signed in"]))
+            return
+        }
+        isLoading = true
+        errorMessage = nil
+        authService.updateUserProfile(name: name, profileImageUrl: profileImageUrl, uid: uid)
+            .sink { [weak self] completionResult in
+                self?.isLoading = false
+                if case .failure(let error) = completionResult {
+                    self?.errorMessage = error.localizedDescription
+                    completion?(error)
+                }
+            } receiveValue: { [weak self] user in
+                self?.currentUser = user
+                self?.userDisplayName = user.name.isEmpty ? "Guest" : user.name
+                completion?(nil)
+            }
+            .store(in: &cancellables)
     }
 }
 

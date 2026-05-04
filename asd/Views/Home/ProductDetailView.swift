@@ -9,6 +9,7 @@ struct ProductDetailView: View {
     @State private var openChat = false
     @State private var targetChatId = ""
     @State private var targetChatStatus: String?
+    @State private var targetBuyerId: String?
     private let chatService = ChatService()
     @State private var cancellables: [AnyCancellable] = []
 
@@ -77,17 +78,9 @@ struct ProductDetailView: View {
                 }
 
                 detailCard(title: "Seller") {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(product.sellerName)
-                                .font(.headline)
-                            Text("Listing rating (legacy)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                            RatingStarsView(rating: product.rating, isSelectable: false, selectedRating: .constant(0))
-                        }
-                        Spacer()
-                    }
+                    Text(product.sellerName)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 detailCard(title: "Reviews") {
@@ -95,12 +88,14 @@ struct ProductDetailView: View {
                         ProductReviewsScreen(product: product)
                             .environmentObject(authViewModel)
                     } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .center, spacing: 12) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("View all reviews")
+                                    .font(.subheadline.weight(.semibold))
                                 if product.reviewCount > 0 {
                                     HStack(spacing: 6) {
                                         Text(String(format: "%.1f", product.reviewAverage))
-                                            .font(.title3.weight(.semibold))
+                                            .font(.title2.weight(.bold))
                                         RatingStarsView(
                                             rating: product.reviewAverage,
                                             isSelectable: false,
@@ -111,19 +106,19 @@ struct ProductDetailView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 } else {
-                                    Text("No reviews yet")
+                                    Text("No reviews yet — be the first")
                                         .font(.subheadline)
                                         .foregroundStyle(.secondary)
-                                    Text("Tap to view or write a review")
-                                        .font(.caption)
-                                        .foregroundStyle(.tertiary)
                                 }
                             }
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right.circle.fill")
+                                .font(.title2)
                                 .foregroundStyle(.tertiary)
                         }
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -143,6 +138,7 @@ struct ProductDetailView: View {
                         } receiveValue: { chat in
                             targetChatId = chat.id
                             targetChatStatus = chat.chatStatus
+                            targetBuyerId = !chat.buyerId.isEmpty ? chat.buyerId : currentUserId
                             openChat = true
                         }
                         cancellables.append(cancellable)
@@ -172,6 +168,7 @@ struct ProductDetailView: View {
                 chatId: targetChatId,
                 product: product,
                 sellerId: product.sellerId,
+                buyerId: targetBuyerId,
                 chatStatus: targetChatStatus,
                 currentUserId: currentUserId
             )

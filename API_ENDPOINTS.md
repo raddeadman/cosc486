@@ -11,7 +11,11 @@ The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile
 | Function | Method | Notes |
 |----------|--------|--------|
 | `submitPlaceholderProduct` | POST | Body includes `priceText`, optional `imageUrls` string array |
-| `fetchProducts` | GET | Returns products with optional `reviewAverage`, `reviewCount` |
+| `fetchProducts` | GET | Returns **available** products only (`isAvailable !== false`); optional `reviewAverage`, `reviewCount`; `sort=rating` uses review averages |
+| `fetchMyProducts` | GET | Bearer required; all products for token’s `sellerId` (including unavailable) |
+| `updateProductAvailability` | PATCH | Query `productId`; body `{ "isAvailable" }`; seller from token must own product |
+| `fetchUserProfile` | GET | Query **`uid`** (required) |
+| `updateUserProfile` | PATCH | Query **`uid`**; Bearer required; token `uid` must match; body `name` and/or `profileImageUrl` (email not updated) |
 | `fetchFavoriteProducts` | GET | Bearer required |
 | `addFavorite` / `removeFavorite` | POST / DELETE | Body `{ "productId" }` |
 | `getOrCreateChat` | POST | Body `buyerId`, `sellerId`, `productId` |
@@ -69,9 +73,9 @@ The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile
 
 ## 2) Users / Profile
 
-### `GET /users/{uid}`
+### `GET /users/{uid}` (implemented as `fetchUserProfile?uid=`)
 - **Used by function:** `AuthService.fetchUserProfile(uid:)`
-- **Path params:** `uid`
+- **Query params:** `uid` (required)
 - **Response body:**
 ```json
 {
@@ -84,16 +88,18 @@ The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile
 }
 ```
 
-### `PATCH /users/{uid}`
-- **Used by function:** `AuthService.updateUserProfile(name:email:uid:)`
-- **Request body:**
+### `PATCH /users/{uid}` (implemented as `updateUserProfile?uid=`)
+- **Used by function:** `AuthService.updateUserProfile(name:profileImageUrl:uid:)`
+- **Headers:** `Authorization: Bearer <token>` (required; must match `uid`)
+- **Query params:** `uid` (required)
+- **Request body (at least one field):**
 ```json
 {
   "name": "Sara Ali",
-  "email": "sara@example.com"
+  "profileImageUrl": "https://firebasestorage.googleapis.com/..."
 }
 ```
-- **Response body:** updated user object (same shape as above)
+- **Response body:** updated user object (same shape as above). Email is not modified by this endpoint.
 
 ## 3) Products
 
@@ -102,9 +108,9 @@ The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile
 - **Query params (recommended):**
   - `search` (String)
   - `category` (String)
-  - `sort` (`date` | `price` | `rating`)
+  - `sort` (`date` | `price` | `rating` — **rating** sorts by `reviewAverage`, then `reviewCount`, then `createdAt`)
   - `lat`, `lng`, `radiusKm` (optional for nearby/map views)
-- **Response body:** array of product objects
+- **Response body:** array of **available** product objects only
 ```json
 [
   {
@@ -145,10 +151,10 @@ The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile
 ```
 - **Response body:** created product object
 
-### `PATCH /users/{userId}/products/{productId}/availability`
+### `PATCH .../updateProductAvailability?productId=`
 - **Used by function:** `ProductService.updateProductAvailability(productId:userId:isAvailable:)`
-- **Headers:** `Authorization: Bearer <token>`
-- **Path params:** `userId`, `productId`
+- **Headers:** `Authorization: Bearer <token>` (seller UID derived from token; must own product)
+- **Query params:** `productId` (required; may alternatively be sent in JSON body)
 - **Request body:**
 ```json
 {
@@ -156,6 +162,11 @@ The iOS app calls HTTPS Cloud Functions on `https://us-central1-openmarketmobile
 }
 ```
 - **Response body:** updated product object
+
+### `GET /fetchMyProducts`
+- **Used by function:** `ProductService.fetchMyProducts()`
+- **Headers:** `Authorization: Bearer <token>`
+- **Response body:** array of all products where `sellerId` equals the authenticated user (includes unavailable)
 
 ## 4) Favorites
 
@@ -309,6 +320,7 @@ Frontend functions that should include network implementations:
 - `AuthService.fetchUserProfile`
 - `AuthService.updateUserProfile`
 - `ProductService.fetchProducts`
+- `ProductService.fetchMyProducts`
 - `ProductService.submitPlaceholderProduct`
 - `ProductService.updateProductAvailability(productId:userId:isAvailable:)`
 - `FavoritesService.fetchFavoriteProducts(userId:)`

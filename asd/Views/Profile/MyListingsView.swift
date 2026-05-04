@@ -14,7 +14,9 @@ struct MyListingsView: View {
 
     var body: some View {
         Group {
-            if myProducts.isEmpty {
+            if let err = viewModel.listingErrorMessage, myProducts.isEmpty {
+                ContentUnavailableView("Couldn’t load listings", systemImage: "shippingbox", description: Text(err))
+            } else if myProducts.isEmpty {
                 ContentUnavailableView("No Listings", systemImage: "shippingbox")
             } else {
                 List(myProducts) { product in
@@ -22,7 +24,7 @@ struct MyListingsView: View {
                         HStack {
                             Text(product.title).font(.headline)
                             Spacer()
-                            Text(product.isAvailable ? "Available" : "Sold")
+                            Text(product.isAvailable ? "Available" : "Unavailable")
                                 .font(.caption.weight(.semibold))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -33,7 +35,7 @@ struct MyListingsView: View {
                         Text(product.price.formattedPrice)
                             .font(.subheadline.weight(.semibold))
 
-                        Button(product.isAvailable ? "Mark as Sold" : "Mark as Available") {
+                        Button(product.isAvailable ? "Mark as unavailable" : "Mark as available") {
                             viewModel.updateAvailability(
                                 product: product,
                                 isAvailable: !product.isAvailable,
@@ -41,6 +43,12 @@ struct MyListingsView: View {
                             )
                         }
                         .buttonStyle(.borderedProminent)
+
+                        if let err = viewModel.listingErrorMessage {
+                            Text(err)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
                     .padding(.vertical, 4)
                 }
@@ -48,7 +56,7 @@ struct MyListingsView: View {
         }
         .navigationTitle("My Listings")
         .onAppear {
-            viewModel.fetchProducts()
+            viewModel.fetchMyListings()
         }
     }
 }

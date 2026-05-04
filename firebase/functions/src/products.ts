@@ -65,12 +65,25 @@ export const fetchProducts = functions.https.onRequest(async (req: any, res: any
           sortedProducts.sort((a, b) => a.price - b.price);
           break;
         case 'rating':
-          sortedProducts.sort((a, b) => b.rating - a.rating);
+          sortedProducts.sort((a, b) => {
+            const avgDiff = (Number(b.reviewAverage) || 0) - (Number(a.reviewAverage) || 0);
+            if (avgDiff !== 0) {
+              return avgDiff;
+            }
+            const countDiff = (Number(b.reviewCount) || 0) - (Number(a.reviewCount) || 0);
+            if (countDiff !== 0) {
+              return countDiff;
+            }
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
           break;
       }
     }
 
-    res.status(200).json(sortedProducts);
+    // Public marketplace: hide unavailable (treat missing isAvailable as available)
+    const visible = sortedProducts.filter((p: any) => p.isAvailable !== false);
+
+    res.status(200).json(visible);
   } catch (error) {
     logger.error("Fetch products error", error);
     return res.status(500).json({ error: `Failed to fetch products: ${error instanceof Error ? error.message : String(error)}` });
@@ -144,7 +157,6 @@ export const submitPlaceholderProduct = functions.https.onRequest(async (req: an
       locationName,
       latitude,
       longitude,
-      rating: 0.0,
       reviewAverage: 0.0,
       reviewCount: 0,
       isAvailable: true,
@@ -188,21 +200,21 @@ export const updateProductAvailability = functions.https.onRequest(async (req: a
 
     const idToken = authHeader.split("Bearer ")[1];
 
-    // Verify the ID token
+    let uid: string;
     try {
-      await admin.auth().verifyIdToken(idToken);
+      const decoded = await admin.auth().verifyIdToken(idToken);
+      uid = decoded.uid;
     } catch (error) {
       logger.error("Invalid token for availability update", error);
       return res.status(401).json({ error: "Invalid or expired token" });
     }
 
-    // Get path parameters and request body
-    const userId = req.params.userId;
-    const productId = req.params.productId;
+    const productIdRaw = req.query.productId ?? req.body?.productId;
+    const productId = Array.isArray(productIdRaw) ? productIdRaw[0] : productIdRaw;
     const { isAvailable } = req.body;
 
-    if (!userId || !productId) {
-      return res.status(400).json({ error: "User ID and Product ID are required" });
+    if (!productId || typeof productId !== "string") {
+      return res.status(400).json({ error: "productId is required (query or JSON body)" });
     }
 
     if (isAvailable === undefined) {
@@ -216,7 +228,7 @@ export const updateProductAvailability = functions.https.onRequest(async (req: a
     }
 
     const productData = productDoc.data() as any;
-    if (productData.sellerId !== userId) {
+    if (productData.sellerId !== uid) {
       return res.status(403).json({ error: "User does not own this product" });
     }
 
@@ -241,6 +253,47 @@ export const updateProductAvailability = functions.https.onRequest(async (req: a
   } catch (error) {
     logger.error("Update availability error", error);
     return res.status(500).json({ error: `Failed to update availability: ${error instanceof Error ? error.message : String(error)}` });
+  }
+});
+
+/**
+ * Authenticated seller: all products they listed (including unavailable).
+ */
+export const fetchMyProducts = functions.https.onRequest(async (req: any, res: any) => {
+  try {
+    if (req.method !== "GET") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Authorization token required" });
+    }
+
+    let uid: string;
+    try {
+      const decoded = await admin.auth().verifyIdToken(authHeader.split("Bearer ")[1]);
+      uid = decoded.uid;
+    } catch (error) {
+      logger.error("Invalid token for fetchMyProducts", error);
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
+
+    const snap = await db.collection("products").where("sellerId", "==", uid).get();
+    const products: any[] = [];
+    for (const doc of snap.docs) {
+      const productData = doc.data() as any;
+      products.push({
+        id: doc.id,
+        ...productData,
+        createdAt: productData.createdAt?.toDate().toISOString(),
+      });
+    }
+    products.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    res.status(200).json(products);
+  } catch (error) {
+    logger.error("Fetch my products error", error);
+    return res.status(500).json({ error: `Failed to fetch your products: ${error instanceof Error ? error.message : String(error)}` });
   }
 });
 

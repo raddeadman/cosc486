@@ -107,6 +107,7 @@ export const updateUserProfile = auth.updateUserProfile;
 export const signUp = auth.signUp;
 
 export const fetchProducts = products.fetchProducts;
+export const fetchMyProducts = products.fetchMyProducts;
 export const submitPlaceholderProduct = products.submitPlaceholderProduct;
 export const updateProductAvailability = products.updateProductAvailability;
 

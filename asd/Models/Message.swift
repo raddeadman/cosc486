@@ -7,9 +7,29 @@ struct Message: Identifiable, Codable, Hashable {
     let createdAt: Date
     let receiverId: String?
     let chatId: String?
+    /// Local-only: optimistic message while send is in flight.
+    var isPending: Bool
 
     enum CodingKeys: String, CodingKey {
         case id, senderId, text, createdAt, receiverId, chatId
+    }
+
+    init(
+        id: String,
+        senderId: String,
+        text: String,
+        createdAt: Date,
+        receiverId: String? = nil,
+        chatId: String? = nil,
+        isPending: Bool = false
+    ) {
+        self.id = id
+        self.senderId = senderId
+        self.text = text
+        self.createdAt = createdAt
+        self.receiverId = receiverId
+        self.chatId = chatId
+        self.isPending = isPending
     }
 
     init(from decoder: Decoder) throws {
@@ -28,6 +48,16 @@ struct Message: Identifiable, Codable, Hashable {
         } else {
             createdAt = Date()
         }
+        isPending = false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(senderId, forKey: .senderId)
+        try container.encode(text, forKey: .text)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(receiverId, forKey: .receiverId)
+        try container.encodeIfPresent(chatId, forKey: .chatId)
     }
 }
-
