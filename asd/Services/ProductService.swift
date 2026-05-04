@@ -77,6 +77,20 @@ final class ProductService {
             .eraseToAnyPublisher()
     }
 
+    // MARK: - Fetch Single Product
+
+    func fetchProduct(productId: String) -> AnyPublisher<Product?, Error> {
+        guard !productId.isEmpty else {
+            return Just(nil).setFailureType(to: Error.self).eraseToAnyPublisher()
+        }
+
+        return fetchProducts()
+            .map { products in
+                products.first(where: { $0.id == productId })
+            }
+            .eraseToAnyPublisher()
+    }
+
     // MARK: - Submit Placeholder Product
 
     func submitPlaceholderProduct(
