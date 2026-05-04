@@ -110,8 +110,7 @@ final class ProductService {
             "title": title,
             "description": description,
             "category": category,
-            "price": price,
-            "isAvailable": true,
+            "priceText": priceText,
             "locationName": locationName,
             "latitude": latitude,
             "longitude": longitude
