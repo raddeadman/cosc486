@@ -10,8 +10,8 @@ struct ProductDetailView: View {
     private let chatService = ChatService()
     @State private var cancellables: [AnyCancellable] = []
 
-    private var currentUserId: String {
-        authViewModel.currentUser?.id ?? "current-user"
+    private var currentUserId: String? {
+        authViewModel.currentUser?.id
     }
 
     var body: some View {
@@ -40,6 +40,7 @@ struct ProductDetailView: View {
                     .frame(height: 220)
 
                 PrimaryButton(title: "Contact Seller") {
+                    guard let currentUserId else { return }
                     let cancellable = chatService.getOrCreateChat(
                         buyerId: currentUserId,
                         sellerId: product.sellerId,
@@ -55,9 +56,11 @@ struct ProductDetailView: View {
                     }
                     cancellables.append(cancellable)
                 }
+                .disabled(currentUserId == nil)
                 PrimaryButton(title: "Add to Favorites") {
+                    guard let currentUserId else { return }
                     let favService = FavoritesService()
-                    let cancellable = favService.addFavorite(productId: product.id, userId: currentUserId)
+                    let cancellable = favService.addFavorite(productId: product.id)
                         .sink { completion in
                             if case let .failure(error) = completion {
                                 print("Failed to add favorite: \(error)")
@@ -67,6 +70,7 @@ struct ProductDetailView: View {
                         }
                     cancellables.append(cancellable)
                 }
+                .disabled(currentUserId == nil)
             }
             .padding()
         }

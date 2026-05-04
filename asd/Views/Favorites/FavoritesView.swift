@@ -15,6 +15,13 @@ struct FavoritesView: View {
                     } label: {
                         ProductCardView(product: product)
                     }
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            viewModel.removeFavorite(product)
+                        } label: {
+                            Label("Remove", systemImage: "trash")
+                        }
+                    }
                 }
             }
         }

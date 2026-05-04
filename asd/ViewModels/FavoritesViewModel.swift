@@ -16,8 +16,8 @@ final class FavoritesViewModel: ObservableObject {
     }
 
     func addFavorite(_ product: Product) {
-        guard let userId = currentUserId else { return }
-        favoritesService.addFavorite(productId: product.id, userId: userId)
+        guard currentUserId != nil else { return }
+        favoritesService.addFavorite(productId: product.id)
             .sink { completion in
                 // Handle completion if needed
             } receiveValue: { _ in
@@ -27,8 +27,8 @@ final class FavoritesViewModel: ObservableObject {
     }
 
     func removeFavorite(_ product: Product) {
-        guard let userId = currentUserId else { return }
-        favoritesService.removeFavorite(productId: product.id, userId: userId)
+        guard currentUserId != nil else { return }
+        favoritesService.removeFavorite(productId: product.id)
             .sink { completion in
                 // Handle completion if needed
             } receiveValue: { _ in
@@ -38,11 +38,11 @@ final class FavoritesViewModel: ObservableObject {
     }
 
     func fetchFavorites() {
-        guard let userId = currentUserId else {
+        guard currentUserId != nil else {
             favoriteProducts = []
             return
         }
-        favoritesService.fetchFavoriteProducts(userId: userId)
+        favoritesService.fetchFavoriteProducts()
             .sink { completion in
                 // Handle completion if needed
             } receiveValue: { products in

@@ -26,11 +26,7 @@ final class FavoritesService {
 
     // MARK: - Fetch Favorite Products
 
-    func fetchFavoriteProducts(userId: String) -> AnyPublisher<[Product], Error> {
-        guard !userId.isEmpty else {
-            return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
-        }
-
+    func fetchFavoriteProducts() -> AnyPublisher<[Product], Error> {
         let urlString = "\(baseURL)/fetchFavoriteProducts"
         var request = URLRequest(url: URL(string: urlString)!)
         request.httpMethod = "GET"
@@ -51,8 +47,8 @@ final class FavoritesService {
 
     // MARK: - Add Favorite
 
-    func addFavorite(productId: String, userId: String) -> AnyPublisher<Bool, Error> {
-        guard !productId.isEmpty, !userId.isEmpty else {
+    func addFavorite(productId: String) -> AnyPublisher<Bool, Error> {
+        guard !productId.isEmpty else {
             return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
         }
 
@@ -83,8 +79,8 @@ final class FavoritesService {
 
     // MARK: - Remove Favorite
 
-    func removeFavorite(productId: String, userId: String) -> AnyPublisher<Bool, Error> {
-        guard !productId.isEmpty, !userId.isEmpty else {
+    func removeFavorite(productId: String) -> AnyPublisher<Bool, Error> {
+        guard !productId.isEmpty else {
             return Fail(error: FavoritesError.invalidParameters).eraseToAnyPublisher()
         }
 

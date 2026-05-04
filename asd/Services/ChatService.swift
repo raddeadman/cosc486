@@ -135,6 +135,7 @@ final class ChatService {
         }
 
         let requestBody: [String: Any] = [
+            "chatId": chatId,
             "text": text
         ]
 

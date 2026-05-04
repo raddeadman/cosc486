@@ -3,11 +3,11 @@ import SwiftUI
 struct ChatDetailView: View {
     let chatId: String
     let product: Product?
-    let currentUserId: String
+    let currentUserId: String?
     @StateObject private var viewModel = ChatViewModel()
     @State private var messageText = ""
 
-    init(chatId: String, product: Product? = nil, currentUserId: String = "current-user") {
+    init(chatId: String, product: Product? = nil, currentUserId: String? = nil) {
         self.chatId = chatId
         self.product = product
         self.currentUserId = currentUserId
@@ -36,14 +36,21 @@ struct ChatDetailView: View {
                 .padding(.horizontal)
             }
 
-            List(viewModel.messages) { message in
-                HStack {
-                    if message.senderId == currentUserId { Spacer() }
-                    Text(message.text)
-                        .padding(10)
-                        .background(.gray.opacity(0.2))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    if message.senderId != currentUserId { Spacer() }
+            if viewModel.isLoadingMessages && viewModel.messages.isEmpty {
+                ProgressView("Loading messages...")
+                    .frame(maxHeight: .infinity)
+            } else if let error = viewModel.messageErrorMessage, viewModel.messages.isEmpty {
+                ContentUnavailableView("Failed to Load Messages", systemImage: "exclamationmark.bubble", description: Text(error))
+            } else {
+                List(viewModel.messages) { message in
+                    HStack {
+                        if message.senderId == currentUserId { Spacer() }
+                        Text(message.text)
+                            .padding(10)
+                            .background(.gray.opacity(0.2))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        if message.senderId != currentUserId { Spacer() }
+                    }
                 }
             }
 
@@ -54,9 +61,17 @@ struct ChatDetailView: View {
                     viewModel.sendMessage(text: messageText, chatId: chatId)
                     messageText = ""
                 }
-                .disabled(messageText.isEmpty)
+                .disabled(messageText.isEmpty || viewModel.isSendingMessage)
             }
             .padding()
+
+            if let error = viewModel.messageErrorMessage, !error.isEmpty {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+            }
         }
         .navigationTitle("Chat")
         .onAppear { viewModel.fetchMessages(chatId: chatId) }
