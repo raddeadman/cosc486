@@ -112,4 +112,4 @@ final class FavoritesService {
             .receive(on: DispatchQueue.main)
             .eraseToAnyPublisher()
     }
-}}
+}
