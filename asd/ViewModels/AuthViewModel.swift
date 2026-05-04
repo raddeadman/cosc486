@@ -77,7 +77,7 @@ final class AuthViewModel: ObservableObject {
             // Check if there's an existing session
             if auth.currentUser != nil {
                 // User is already signed in, fetch their profile
-                for await userProfile in authService.fetchUserProfile(uid: auth.currentUser!.uid).values {
+                for try await userProfile in authService.fetchUserProfile(uid: auth.currentUser!.uid).values {
                 DispatchQueue.main.async { [weak self] in
                     self?.currentUser = userProfile
                     self?.isLoggedIn = true
@@ -107,7 +107,7 @@ final class AuthViewModel: ObservableObject {
                         guard let self = self else { return }
 
                         do {
-                            for await userProfile in self.authService.fetchUserProfile(uid: user.uid).values {
+                            for try await userProfile in self.authService.fetchUserProfile(uid: user.uid).values {
                             // Update @Published properties from the main queue
                             DispatchQueue.main.async {
                                 self.currentUser = userProfile
@@ -138,7 +138,7 @@ final class AuthViewModel: ObservableObject {
         Task.detached { [weak self] in
             guard let self = self, let currentUser = self.currentUser else { return }
 
-            for await userProfile in self.authService.fetchUserProfile(uid: currentUser.id).values {
+            for try await userProfile in self.authService.fetchUserProfile(uid: currentUser.id).values {
                 DispatchQueue.main.async {
                     self.currentUser = userProfile
                 }
