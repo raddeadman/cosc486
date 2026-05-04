@@ -21,6 +21,38 @@ struct Product: Identifiable, Codable, Hashable {
         CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
+    init(
+        id: String,
+        title: String,
+        description: String,
+        price: Double,
+        category: String,
+        imageUrls: [String],
+        sellerId: String,
+        sellerName: String,
+        locationName: String,
+        latitude: Double,
+        longitude: Double,
+        rating: Double,
+        isAvailable: Bool,
+        createdAt: Date
+    ) {
+        self.id = id
+        self.title = title
+        self.description = description
+        self.price = price
+        self.category = category
+        self.imageUrls = imageUrls
+        self.sellerId = sellerId
+        self.sellerName = sellerName
+        self.locationName = locationName
+        self.latitude = latitude
+        self.longitude = longitude
+        self.rating = rating
+        self.isAvailable = isAvailable
+        self.createdAt = createdAt
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, title, description, price, category, imageUrls, sellerId, sellerName, locationName, latitude, longitude, rating, isAvailable, createdAt
     }

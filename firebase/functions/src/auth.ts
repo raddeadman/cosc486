@@ -88,11 +88,11 @@ export const login = functions.https.onRequest(async (req: any, res: any) => {
 
       // Get the user data with proper types
       const userData = userDoc.data() as any;
-      const createdAt = userData.createdAt && typeof userData.createdAt.toDate === "function"
-        ? userData.createdAt.toDate().toISOString()
-        : typeof userData.createdAt === "string"
-          ? userData.createdAt
-          : new Date().toISOString();
+      const createdAt = userData.createdAt && typeof userData.createdAt.toDate === "function" ?
+        userData.createdAt.toDate().toISOString() :
+        typeof userData.createdAt === "string" ?
+          userData.createdAt :
+          new Date().toISOString();
 
       res.status(200).json({
         token: authResult.idToken,
